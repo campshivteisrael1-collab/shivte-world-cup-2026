@@ -16,10 +16,18 @@ function getTeamName(teams: any[], id: number) {
   return getTeam(teams, id)?.name || 'Equipo'
 }
 
+function getJornadaNumber(match: any) {
+  if (match.phase !== 'regular') return null
+  const raw = match.match_code?.split('-')[0] || ''
+  const clean = raw.replace('J', '')
+  const num = Number(clean)
+  return Number.isNaN(num) ? null : num
+}
+
 function getJornadaLabel(match: any) {
   if (match.phase === 'regular') {
-    const jornada = match.match_code?.split('-')[0]?.replace('J', '')
-    return `Jornada ${jornada}`
+    const jornada = getJornadaNumber(match)
+    return jornada ? `Jornada ${jornada}` : 'Jornada'
   }
   if (match.phase === 'quarterfinal') return 'Cuartos'
   if (match.phase === 'semifinal') return 'Semifinal'
@@ -82,17 +90,11 @@ function getDisplayScores(match: any) {
   }
 }
 
-function cardStyle() {
-  return {
-    background: 'white',
-    borderRadius: 20,
-    padding: 24,
-    boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
-    marginTop: 20,
-  } as const
+function getTeamGroup(team: any) {
+  return team?.group_name || team?.group || team?.grupo || 'Sin grupo'
 }
 
-function TeamMini({
+function TeamRow({
   team,
   align = 'left',
 }: {
@@ -104,7 +106,7 @@ function TeamMini({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
+        gap: 8,
         justifyContent:
           align === 'center'
             ? 'center'
@@ -118,14 +120,234 @@ function TeamMini({
           src={team.logo_url}
           alt={team.name}
           style={{
-            width: 22,
-            height: 22,
+            width: 26,
+            height: 26,
             objectFit: 'contain',
             display: 'block',
           }}
         />
       ) : null}
-      <span>{team?.name || 'Equipo'}</span>
+
+      <span
+        style={{
+          fontWeight: 700,
+          lineHeight: 1.15,
+          overflowWrap: 'anywhere',
+        }}
+      >
+        {team?.name || 'Equipo'}
+      </span>
+    </div>
+  )
+}
+
+function MatchCard({
+  match,
+  teams,
+  sportName,
+}: {
+  match: any
+  teams: any[]
+  sportName: string
+}) {
+  const teamA = getTeam(teams, match.team_a_id)
+  const teamB = getTeam(teams, match.team_b_id)
+  const score = getDisplayScores(match)
+  const statusStyle = getStatusStyles(match)
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e5e7eb',
+        borderRadius: 18,
+        padding: 16,
+        boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
+        marginBottom: 12,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 10,
+          alignItems: 'center',
+          marginBottom: 10,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ fontSize: 13, color: '#6b7280', fontWeight: 700 }}>
+          {getJornadaLabel(match)}
+        </div>
+
+        <div
+          style={{
+            ...statusStyle,
+            padding: '4px 10px',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+          }}
+        >
+          {getStatusLabel(match)}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
+        {sportName}
+      </div>
+
+      {match.match_time && (
+        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+          {match.match_time}
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          gap: 10,
+          alignItems: 'center',
+        }}
+      >
+        <div>
+          <TeamRow team={teamA} />
+        </div>
+
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: 28,
+            textAlign: 'center',
+            minWidth: 86,
+          }}
+        >
+          {score.a} - {score.b}
+        </div>
+
+        <div>
+          <TeamRow team={teamB} align="right" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StandingsCard({
+  title,
+  rows,
+}: {
+  title: string
+  rows: any[]
+}) {
+  return (
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid #e5e7eb',
+        borderRadius: 18,
+        padding: 16,
+        boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          fontWeight: 800,
+          fontSize: 26,
+          marginBottom: 14,
+        }}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1fr) auto',
+          gap: 10,
+          fontSize: 12,
+          color: '#6b7280',
+          paddingBottom: 10,
+          borderBottom: '1px solid #e5e7eb',
+          marginBottom: 4,
+        }}
+      >
+        <div>Equipo</div>
+        <div style={{ display: 'flex', gap: 12, fontWeight: 700 }}>
+          <span>PJ</span>
+          <span>G</span>
+          <span>E</span>
+          <span>P</span>
+          <span>DG</span>
+          <span>Pts</span>
+        </div>
+      </div>
+
+      {rows.map((t: any, i: number) => (
+        <div
+          key={t.id ?? `${title}-${i}`}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0,1fr) auto',
+            gap: 10,
+            alignItems: 'center',
+            padding: '12px 0',
+            borderBottom: i === rows.length - 1 ? 'none' : '1px solid #f1f5f9',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              minWidth: 0,
+            }}
+          >
+            <div style={{ width: 18, fontWeight: 700 }}>{i + 1}</div>
+
+            {t.logo_url ? (
+              <img
+                src={t.logo_url}
+                alt={t.team}
+                style={{
+                  width: 24,
+                  height: 24,
+                  objectFit: 'contain',
+                  display: 'block',
+                  flexShrink: 0,
+                }}
+              />
+            ) : null}
+
+            <div
+              style={{
+                fontWeight: 700,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              {t.team}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              fontSize: 14,
+              alignItems: 'center',
+            }}
+          >
+            <span>{t.PJ}</span>
+            <span>{t.PG}</span>
+            <span>{t.PE}</span>
+            <span>{t.PP}</span>
+            <span>{t.DIF}</span>
+            <span style={{ fontWeight: 800 }}>{t.PTS}</span>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -153,48 +375,38 @@ export default function TablaPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const regular = useMemo(
-    () => matches.filter((m) => m.phase === 'regular'),
-    [matches]
-  )
-
-  const sportCols = useMemo(
-    () =>
-      sports.map((s) => ({
-        id: s.id,
-        name: s.display_name || s.name,
-      })),
-    [sports]
-  )
-
-  const times = useMemo(() => {
-    const uniqueTimes = Array.from(
-      new Set(regular.map((m) => m.match_time || 'Sin horario'))
-    )
-
-    return uniqueTimes.sort(
-      (a, b) => parseTimeRangeToMinutes(a) - parseTimeRangeToMinutes(b)
-    )
-  }, [regular])
-
-  const matrix = useMemo(() => {
-    return times.map((time) => {
-      const row: any = { time, cells: {} }
-
-      sportCols.forEach((sport) => {
-        const match = regular.find(
-          (m) =>
-            (m.match_time || 'Sin horario') === time &&
-            m.sport_id === sport.id
-        )
-        row.cells[sport.id] = match || null
-      })
-
-      return row
+  const sportsMap = useMemo(() => {
+    const map: Record<number, string> = {}
+    sports.forEach((s) => {
+      map[s.id] = s.display_name || s.name || 'Deporte'
     })
-  }, [times, sportCols, regular])
+    return map
+  }, [sports])
 
-  const standings = useMemo(() => {
+  const regularMatches = useMemo(() => {
+    return matches
+      .filter((m) => m.phase === 'regular')
+      .sort((a, b) => {
+        const jornadaA = getJornadaNumber(a) ?? 999
+        const jornadaB = getJornadaNumber(b) ?? 999
+        if (jornadaA !== jornadaB) return jornadaA - jornadaB
+        return parseTimeRangeToMinutes(a.match_time) - parseTimeRangeToMinutes(b.match_time)
+      })
+  }, [matches])
+
+  const matchesByJornada = useMemo(() => {
+    const grouped: Record<string, any[]> = {}
+
+    regularMatches.forEach((match) => {
+      const label = getJornadaLabel(match)
+      if (!grouped[label]) grouped[label] = []
+      grouped[label].push(match)
+    })
+
+    return grouped
+  }, [regularMatches])
+
+  const generalStandings = useMemo(() => {
     const table: any = {}
 
     teams.forEach((t) => {
@@ -202,6 +414,7 @@ export default function TablaPage() {
         id: t.id,
         team: t.name,
         logo_url: t.logo_url,
+        group: getTeamGroup(t),
         PJ: 0,
         PG: 0,
         PE: 0,
@@ -218,7 +431,6 @@ export default function TablaPage() {
       .forEach((m) => {
         const a = table[m.team_a_id]
         const b = table[m.team_b_id]
-
         if (!a || !b) return
 
         const sa = Number(m.score_a ?? 0)
@@ -260,48 +472,40 @@ export default function TablaPage() {
     })
   }, [matches, teams])
 
-  const quarters = useMemo(
-    () =>
-      matches
-        .filter((m) => m.phase === 'quarterfinal')
-        .sort(
-          (a, b) =>
-            parseTimeRangeToMinutes(a.match_time) -
-            parseTimeRangeToMinutes(b.match_time)
-        ),
-    [matches]
-  )
+  const groupStandings = useMemo(() => {
+    const grouped: Record<string, any[]> = {}
 
-  const semis = useMemo(
-    () =>
-      matches
-        .filter((m) => m.phase === 'semifinal')
-        .sort(
-          (a, b) =>
-            parseTimeRangeToMinutes(a.match_time) -
-            parseTimeRangeToMinutes(b.match_time)
-        ),
-    [matches]
-  )
+    generalStandings.forEach((team: any) => {
+      const group = team.group || 'Sin grupo'
+      if (!grouped[group]) grouped[group] = []
+      grouped[group].push(team)
+    })
 
-  const finals = useMemo(
-    () =>
-      matches
-        .filter((m) => m.phase === 'final')
-        .sort(
-          (a, b) =>
-            parseTimeRangeToMinutes(a.match_time) -
-            parseTimeRangeToMinutes(b.match_time)
-        ),
-    [matches]
-  )
+    Object.keys(grouped).forEach((group) => {
+      grouped[group] = grouped[group].sort((a: any, b: any) => {
+        if (b.PTS !== a.PTS) return b.PTS - a.PTS
+        if (b.DIF !== a.DIF) return b.DIF - a.DIF
+        if (b.PF !== a.PF) return b.PF - a.PF
+        return a.team.localeCompare(b.team)
+      })
+    })
+
+    return grouped
+  }, [generalStandings])
 
   if (loading) {
-    return <div style={{ padding: 20 }}>Cargando...</div>
+    return <main style={{ padding: 20 }}>Cargando...</main>
   }
 
   return (
-    <main style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
+    <main
+      style={{
+        padding: 16,
+        maxWidth: 860,
+        margin: '0 auto',
+        fontFamily: 'Arial, sans-serif',
+      }}
+    >
       <a
         href="/"
         style={{
@@ -319,337 +523,49 @@ export default function TablaPage() {
         ← Inicio
       </a>
 
-      <h1 style={{ marginBottom: 20 }}>Tabla del torneo</h1>
+      <h1 style={{ marginTop: 0, marginBottom: 20 }}>Tabla del torneo</h1>
 
-      <div
-        style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}
-      >
-        <a
-          href="#calendario"
-          style={{
-            textDecoration: 'none',
-            background: '#111827',
-            color: 'white',
-            padding: '10px 16px',
-            borderRadius: 999,
-            fontWeight: 'bold',
-          }}
-        >
-          Calendario
-        </a>
-        <a
-          href="#posiciones"
-          style={{
-            textDecoration: 'none',
-            background: '#1d4ed8',
-            color: 'white',
-            padding: '10px 16px',
-            borderRadius: 999,
-            fontWeight: 'bold',
-          }}
-        >
-          Posiciones
-        </a>
-        <a
-          href="#eliminacion"
-          style={{
-            textDecoration: 'none',
-            background: '#059669',
-            color: 'white',
-            padding: '10px 16px',
-            borderRadius: 999,
-            fontWeight: 'bold',
-          }}
-        >
-          Eliminación
-        </a>
-      </div>
-
-      <div id="calendario" style={{ ...cardStyle(), scrollMarginTop: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Calendario</h2>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table
-            style={{
-              minWidth: 980,
-              width: '100%',
-              borderCollapse: 'collapse',
-            }}
-          >
-            <thead>
-              <tr style={{ background: '#111', color: 'white' }}>
-                <th style={{ padding: 10 }}>Hora</th>
-                {sportCols.map((s) => (
-                  <th key={s.id} style={{ padding: 10 }}>
-                    {s.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {matrix.map((row, i) => (
-                <tr
-                  key={row.time}
-                  style={{ background: i % 2 ? '#f9fafb' : 'white' }}
-                >
-                  <td style={{ padding: 10, fontWeight: 'bold', verticalAlign: 'top' }}>
-                    {row.time}
-                  </td>
-
-                  {sportCols.map((s) => {
-                    const m = row.cells[s.id]
-
-                    if (!m) {
-                      return (
-                        <td key={s.id} style={{ padding: 10, textAlign: 'center' }}>
-                          —
-                        </td>
-                      )
-                    }
-
-                    const style = getStatusStyles(m)
-                    const score = getDisplayScores(m)
-                    const teamA = getTeam(teams, m.team_a_id)
-                    const teamB = getTeam(teams, m.team_b_id)
-
-                    return (
-                      <td key={s.id} style={{ padding: 10, verticalAlign: 'top' }}>
-                        <div style={{ fontSize: 12 }}>{getJornadaLabel(m)}</div>
-
-                        <div style={{ marginTop: 6 }}>
-                          <TeamMini team={teamA} />
-                        </div>
-
-                        <div
-                          style={{
-                            textAlign: 'center',
-                            fontWeight: 'bold',
-                            fontSize: 18,
-                            margin: '6px 0',
-                          }}
-                        >
-                          {score.a} - {score.b}
-                        </div>
-
-                        <div>
-                          <TeamMini team={teamB} />
-                        </div>
-
-                        <div style={{ marginTop: 8 }}>
-                          <span
-                            style={{
-                              ...style,
-                              padding: '2px 6px',
-                              borderRadius: 6,
-                              fontSize: 10,
-                            }}
-                          >
-                            {getStatusLabel(m)}
-                          </span>
-                        </div>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div id="posiciones" style={{ ...cardStyle(), scrollMarginTop: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Posiciones</h2>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table
-            style={{
-              width: '100%',
-              minWidth: 760,
-              borderCollapse: 'collapse',
-            }}
-            border={1}
-          >
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Equipo</th>
-                <th>PJ</th>
-                <th>PG</th>
-                <th>PE</th>
-                <th>PP</th>
-                <th>PF</th>
-                <th>PC</th>
-                <th>DIF</th>
-                <th>PTS</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {standings.map((t: any, i) => (
-                <tr key={t.id ?? i}>
-                  <td>{i + 1}</td>
-                  <td>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                      }}
-                    >
-                      {t.logo_url ? (
-                        <img
-                          src={t.logo_url}
-                          alt={t.team}
-                          style={{
-                            width: 24,
-                            height: 24,
-                            objectFit: 'contain',
-                            display: 'block',
-                          }}
-                        />
-                      ) : null}
-                      <span>{t.team}</span>
-                    </div>
-                  </td>
-                  <td>{t.PJ}</td>
-                  <td>{t.PG}</td>
-                  <td>{t.PE}</td>
-                  <td>{t.PP}</td>
-                  <td>{t.PF}</td>
-                  <td>{t.PC}</td>
-                  <td>{t.DIF}</td>
-                  <td>
-                    <b>{t.PTS}</b>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ marginTop: 20 }}>
-          {standings.map((t: any, i) => (
+      {/* PARTIDOS POR JORNADA */}
+      <section style={{ marginBottom: 28 }}>
+        {Object.entries(matchesByJornada).map(([jornada, jornadaMatches]) => (
+          <div key={jornada} style={{ marginBottom: 22 }}>
             <div
-              key={`mobile-${t.id ?? i}`}
               style={{
-                border: '1px solid #ddd',
-                borderRadius: 14,
-                padding: 14,
+                fontWeight: 800,
+                fontSize: 28,
                 marginBottom: 12,
               }}
             >
-              <div
-                style={{
-                  fontWeight: 'bold',
-                  fontSize: 18,
-                  marginBottom: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                {t.logo_url ? (
-                  <img
-                    src={t.logo_url}
-                    alt={t.team}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      objectFit: 'contain',
-                      display: 'block',
-                    }}
-                  />
-                ) : null}
-                <span>
-                  #{i + 1} {t.team}
-                </span>
-              </div>
-
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(5, 1fr)',
-                  gap: 8,
-                  fontSize: 13,
-                }}
-              >
-                <div><strong>PJ</strong><br />{t.PJ}</div>
-                <div><strong>PG</strong><br />{t.PG}</div>
-                <div><strong>PE</strong><br />{t.PE}</div>
-                <div><strong>PP</strong><br />{t.PP}</div>
-                <div><strong>PTS</strong><br />{t.PTS}</div>
-                <div><strong>PF</strong><br />{t.PF}</div>
-                <div><strong>PC</strong><br />{t.PC}</div>
-                <div><strong>DIF</strong><br />{t.DIF}</div>
-              </div>
+              {jornada}
             </div>
-          ))}
-        </div>
-      </div>
 
-      <div id="eliminacion" style={{ ...cardStyle(), scrollMarginTop: 20 }}>
-        <h2 style={{ marginTop: 0 }}>Eliminación</h2>
-
-        {[
-          { title: 'Cuartos', list: quarters },
-          { title: 'Semis', list: semis },
-          { title: 'Final', list: finals },
-        ].map((section) => (
-          <div key={section.title} style={{ marginBottom: 24 }}>
-            <h3>{section.title}</h3>
-            {section.list.length === 0 && <div>No hay partidos todavía.</div>}
-            {section.list.map((m: any) => {
-              const score = getDisplayScores(m)
-              const teamA = getTeam(teams, m.team_a_id)
-              const teamB = getTeam(teams, m.team_b_id)
-              return (
-                <div
-                  key={m.id}
-                  style={{
-                    border: '1px solid #ddd',
-                    borderRadius: 12,
-                    padding: 12,
-                    marginBottom: 10,
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>
-                    {m.match_time || 'Sin horario'}
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto 1fr',
-                      gap: 8,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <TeamMini team={teamA} align="left" />
-                    <div style={{ fontWeight: 'bold', fontSize: 20 }}>
-                      {score.a} - {score.b}
-                    </div>
-                    <TeamMini team={teamB} align="right" />
-                  </div>
-
-                  <div style={{ marginTop: 8 }}>
-                    <span
-                      style={{
-                        ...getStatusStyles(m),
-                        padding: '2px 6px',
-                        borderRadius: 6,
-                        fontSize: 10,
-                      }}
-                    >
-                      {getStatusLabel(m)}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
+            {jornadaMatches.map((match) => (
+              <MatchCard
+                key={match.id}
+                match={match}
+                teams={teams}
+                sportName={sportsMap[match.sport_id] || 'Deporte'}
+              />
+            ))}
           </div>
         ))}
-      </div>
+      </section>
+
+      {/* TABLA DE RESULTADOS */}
+      <section style={{ marginBottom: 28 }}>
+        {Object.entries(groupStandings).map(([groupName, rows]) => (
+          <StandingsCard
+            key={groupName}
+            title={groupName}
+            rows={rows}
+          />
+        ))}
+      </section>
+
+      {/* TABLA GENERAL */}
+      <section>
+        <StandingsCard title="Tabla general" rows={generalStandings} />
+      </section>
     </main>
   )
 }
