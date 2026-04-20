@@ -1,0 +1,166 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+export default function AdminNuevoEquipoPage() {
+  const router = useRouter()
+
+  const [teamName, setTeamName] = useState('')
+  const [coachName, setCoachName] = useState('')
+  const [playersText, setPlayersText] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    const playerNames = playersText
+      .split('\n')
+      .map((x) => x.trim())
+      .filter(Boolean)
+
+    try {
+      const res = await fetch('/api/admin/team-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamName, coachName, playerNames }),
+      })
+
+      const result = await res.json()
+
+      if (!res.ok) {
+        setError(result.error || 'No se pudo crear el equipo')
+        setLoading(false)
+        return
+      }
+
+      router.push('/admin/equipos')
+      router.refresh()
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo crear el equipo')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main
+      style={{
+        padding: 16,
+        maxWidth: 760,
+        margin: '0 auto',
+        fontFamily: 'Arial, sans-serif',
+      }}
+    >
+      <a
+        href="/admin/equipos"
+        style={{
+          display: 'inline-block',
+          marginBottom: 12,
+          padding: '8px 14px',
+          background: '#111827',
+          color: 'white',
+          borderRadius: 999,
+          textDecoration: 'none',
+          fontWeight: 'bold',
+          fontSize: 14,
+        }}
+      >
+        ← Admin Equipos
+      </a>
+
+      <h1 style={{ marginTop: 0, marginBottom: 18 }}>Crear equipo</h1>
+
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          border: '1px solid #ddd',
+          borderRadius: 18,
+          background: '#fff',
+          padding: 18,
+          boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
+        }}
+      >
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
+            Nombre del equipo
+          </label>
+          <input
+            value={teamName}
+            onChange={(e) => setTeamName(e.target.value)}
+            required
+            style={{
+              width: '100%',
+              padding: 12,
+              borderRadius: 12,
+              border: '1px solid #ccc',
+              fontSize: 15,
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
+            Director técnico
+          </label>
+          <input
+            value={coachName}
+            onChange={(e) => setCoachName(e.target.value)}
+            style={{
+              width: '100%',
+              padding: 12,
+              borderRadius: 12,
+              border: '1px solid #ccc',
+              fontSize: 15,
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
+            Jugadores
+          </label>
+          <textarea
+            value={playersText}
+            onChange={(e) => setPlayersText(e.target.value)}
+            rows={10}
+            placeholder={'Un jugador por línea\nEjemplo:\nAarón\nYosef\nDaniel'}
+            style={{
+              width: '100%',
+              padding: 12,
+              borderRadius: 12,
+              border: '1px solid #ccc',
+              fontSize: 15,
+              resize: 'vertical',
+              fontFamily: 'Arial, sans-serif',
+            }}
+          />
+        </div>
+
+        {error && (
+          <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            width: '100%',
+            padding: 14,
+            background: '#059669',
+            color: 'white',
+            border: 'none',
+            borderRadius: 12,
+            fontWeight: 'bold',
+            fontSize: 16,
+            cursor: 'pointer',
+          }}
+        >
+          {loading ? 'Guardando...' : 'Guardar equipo'}
+        </button>
+      </form>
+    </main>
+  )
+}
