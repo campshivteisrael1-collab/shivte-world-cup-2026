@@ -48,44 +48,44 @@ function getStatusLabel(match: any) {
   return 'PENDIENTE'
 }
 
-function getStatusStyles(match: any) {
+function getStatusTheme(match: any) {
   const key = getStatusKey(match)
 
   if (key === 'finished') {
     return {
-      background: '#dcfce7',
-      color: '#166534',
-      border: '#86efac',
-      className: 'status-finished',
+      badgeBg: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+      badgeColor: '#166534',
+      badgeBorder: '#86efac',
+      cardBg: 'linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%)',
       cardBorder: '#bbf7d0',
-      cardBackground: '#ffffff',
-      cardShadow: '0 8px 20px rgba(34,197,94,0.08)',
-      cardClassName: 'card-finished',
+      cardShadow: '0 10px 24px rgba(34,197,94,0.10)',
+      badgeClass: 'status-finished',
+      cardClass: 'card-finished',
     }
   }
 
   if (key === 'live') {
     return {
-      background: '#dbeafe',
-      color: '#1d4ed8',
-      border: '#93c5fd',
-      className: 'status-live',
+      badgeBg: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+      badgeColor: '#1d4ed8',
+      badgeBorder: '#93c5fd',
+      cardBg: 'linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)',
       cardBorder: '#93c5fd',
-      cardBackground: '#ffffff',
-      cardShadow: '0 10px 24px rgba(59,130,246,0.12)',
-      cardClassName: 'card-live',
+      cardShadow: '0 12px 28px rgba(59,130,246,0.14)',
+      badgeClass: 'status-live',
+      cardClass: 'card-live',
     }
   }
 
   return {
-    background: '#fef3c7',
-    color: '#92400e',
-    border: '#fcd34d',
-    className: 'status-pending',
+    badgeBg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+    badgeColor: '#92400e',
+    badgeBorder: '#fcd34d',
+    cardBg: 'linear-gradient(180deg, #ffffff 0%, #fffaf0 100%)',
     cardBorder: '#fcd34d',
-    cardBackground: '#ffffff',
-    cardShadow: '0 8px 18px rgba(245,158,11,0.08)',
-    cardClassName: 'card-pending',
+    cardShadow: '0 10px 22px rgba(245,158,11,0.10)',
+    badgeClass: 'status-pending',
+    cardClass: 'card-pending',
   }
 }
 
@@ -110,8 +110,8 @@ function parseTimeRangeToMinutes(value: string | null | undefined) {
 function getDisplayScores(match: any) {
   if (match.status === 'submitted') {
     return {
-      a: match.score_a ?? '-',
-      b: match.score_b ?? '-',
+      a: match.score_a ?? 0,
+      b: match.score_b ?? 0,
     }
   }
 
@@ -123,8 +123,8 @@ function getDisplayScores(match: any) {
   }
 
   return {
-    a: '0',
-    b: '0',
+    a: 0,
+    b: 0,
   }
 }
 
@@ -137,11 +137,11 @@ function LiveBall() {
     <div
       className="live-ball"
       style={{
-        width: 10,
-        height: 10,
+        width: 11,
+        height: 11,
         borderRadius: '50%',
         background:
-          'radial-gradient(circle at 35% 35%, #ffffff 0%, #f3f4f6 38%, #111827 39%, #111827 52%, #f3f4f6 53%, #f9fafb 100%)',
+          'radial-gradient(circle at 35% 35%, #ffffff 0%, #f3f4f6 38%, #111827 39%, #111827 52%, #f9fafb 53%, #ffffff 100%)',
         border: '1px solid rgba(0,0,0,0.18)',
         boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
         display: 'inline-block',
@@ -164,20 +164,24 @@ function MatchCard({
   const teamA = getTeam(teams, match.team_a_id)
   const teamB = getTeam(teams, match.team_b_id)
   const score = getDisplayScores(match)
-  const style = getStatusStyles(match)
+  const statusTheme = getStatusTheme(match)
   const statusKey = getStatusKey(match)
   const isFinal = match.phase === 'final'
 
   return (
     <div
-      className={style.cardClassName}
+      className={statusTheme.cardClass}
       style={{
-        borderRadius: isFinal ? 20 : 18,
-        padding: 14,
-        marginBottom: 14,
-        background: isFinal ? '#fffaf0' : style.cardBackground,
-        border: `1px solid ${isFinal ? '#f59e0b' : style.cardBorder}`,
-        boxShadow: isFinal ? '0 12px 26px rgba(245,158,11,0.14)' : style.cardShadow,
+        borderRadius: 22,
+        padding: 18,
+        marginBottom: 16,
+        background: isFinal
+          ? 'linear-gradient(180deg, #fff7ed 0%, #ffffff 100%)'
+          : statusTheme.cardBg,
+        border: `1px solid ${isFinal ? '#f59e0b' : statusTheme.cardBorder}`,
+        boxShadow: isFinal
+          ? '0 14px 32px rgba(245,158,11,0.18)'
+          : statusTheme.cardShadow,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -193,15 +197,15 @@ function MatchCard({
               width: '28%',
               height: '100%',
               background:
-                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.58) 50%, rgba(255,255,255,0) 100%)',
+                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%)',
               pointerEvents: 'none',
             }}
           />
           <div
             style={{
               position: 'absolute',
-              top: 10,
-              right: 12,
+              top: 12,
+              right: 14,
               fontSize: 22,
               opacity: 0.18,
               pointerEvents: 'none',
@@ -212,158 +216,154 @@ function MatchCard({
         </>
       )}
 
-      <div
-        style={{
-          fontWeight: 800,
-          fontSize: 16,
-          marginBottom: 8,
-          lineHeight: 1.2,
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
-        {getMatchTitle(match)}
-      </div>
-
-      <div
-        style={{
-          fontSize: 12,
-          color: '#6b7280',
-          marginBottom: 4,
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
-        {sportName}
-      </div>
-
-      {match.match_time && (
+      <div style={{ position: 'relative', zIndex: 1 }}>
         <div
           style={{
-            fontSize: 12,
-            color: '#6b7280',
-            marginBottom: 12,
-            position: 'relative',
-            zIndex: 1,
-          }}
-        >
-          {match.match_time}
-        </div>
-      )}
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 12,
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            minWidth: 0,
-          }}
-        >
-          {teamA?.logo_url ? (
-            <img
-              src={teamA.logo_url}
-              alt={teamA.name}
-              style={{
-                width: isFinal ? 32 : 28,
-                height: isFinal ? 32 : 28,
-                objectFit: 'contain',
-                display: 'block',
-                flexShrink: 0,
-              }}
-            />
-          ) : null}
-          <div
-            style={{
-              fontWeight: 700,
-              fontSize: 15,
-              lineHeight: 1.1,
-              overflowWrap: 'anywhere',
-            }}
-          >
-            {teamA?.name || 'Equipo'}
-          </div>
-        </div>
-
-        <div
-          className={statusKey === 'live' ? 'score-live' : ''}
-          style={{
-            fontSize: isFinal ? 30 : 28,
             fontWeight: 900,
-            lineHeight: 1,
-            minWidth: 72,
-            textAlign: 'center',
-            whiteSpace: 'nowrap',
+            fontSize: 17,
+            marginBottom: 8,
+            lineHeight: 1.2,
           }}
         >
-          {score.a} - {score.b}
+          {getMatchTitle(match)}
         </div>
 
         <div
           style={{
-            display: 'flex',
+            fontSize: 13,
+            color: '#6b7280',
+            marginBottom: 4,
+            fontWeight: 500,
+            letterSpacing: 0.2,
+          }}
+        >
+          {sportName}
+        </div>
+
+        {match.match_time && (
+          <div
+            style={{
+              fontSize: 13,
+              color: '#6b7280',
+              marginBottom: 16,
+            }}
+          >
+            {match.match_time}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            gap: 10,
             alignItems: 'center',
-            gap: 8,
-            justifyContent: 'flex-end',
-            minWidth: 0,
+            marginBottom: 16,
           }}
         >
           <div
             style={{
-              fontWeight: 700,
-              fontSize: 15,
-              lineHeight: 1.1,
-              overflowWrap: 'anywhere',
-              textAlign: 'right',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 0,
             }}
           >
-            {teamB?.name || 'Equipo'}
-          </div>
-          {teamB?.logo_url ? (
-            <img
-              src={teamB.logo_url}
-              alt={teamB.name}
+            {teamA?.logo_url ? (
+              <img
+                src={teamA.logo_url}
+                alt={teamA.name}
+                style={{
+                  width: isFinal ? 42 : 36,
+                  height: isFinal ? 42 : 36,
+                  objectFit: 'contain',
+                  display: 'block',
+                  marginBottom: 8,
+                }}
+              />
+            ) : null}
+            <div
               style={{
-                width: isFinal ? 32 : 28,
-                height: isFinal ? 32 : 28,
-                objectFit: 'contain',
-                display: 'block',
-                flexShrink: 0,
+                fontWeight: 800,
+                fontSize: 16,
+                textAlign: 'center',
+                lineHeight: 1.1,
+                overflowWrap: 'anywhere',
               }}
-            />
-          ) : null}
-        </div>
-      </div>
+            >
+              {teamA?.name || 'Equipo'}
+            </div>
+          </div>
 
-      <div
-        className={style.className}
-        style={{
-          marginTop: 4,
-          fontSize: 11,
-          fontWeight: 800,
-          display: 'inline-flex',
-          alignItems: 'center',
-          padding: '5px 11px',
-          borderRadius: 999,
-          background: style.background,
-          color: style.color,
-          border: `1px solid ${style.border}`,
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
-        {statusKey === 'live' ? <LiveBall /> : null}
-        {getStatusLabel(match)}
+          <div
+            className={statusKey === 'live' ? 'score-live' : ''}
+            style={{
+              fontSize: isFinal ? 36 : 34,
+              fontWeight: 900,
+              lineHeight: 1,
+              minWidth: isFinal ? 110 : 96,
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {score.a} - {score.b}
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 0,
+            }}
+          >
+            {teamB?.logo_url ? (
+              <img
+                src={teamB.logo_url}
+                alt={teamB.name}
+                style={{
+                  width: isFinal ? 42 : 36,
+                  height: isFinal ? 42 : 36,
+                  objectFit: 'contain',
+                  display: 'block',
+                  marginBottom: 8,
+                }}
+              />
+            ) : null}
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 16,
+                textAlign: 'center',
+                lineHeight: 1.1,
+                overflowWrap: 'anywhere',
+              }}
+            >
+              {teamB?.name || 'Equipo'}
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={statusTheme.badgeClass}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '6px 14px',
+            borderRadius: 999,
+            background: statusTheme.badgeBg,
+            color: statusTheme.badgeColor,
+            border: `1px solid ${statusTheme.badgeBorder}`,
+            fontSize: 12,
+            fontWeight: 900,
+            letterSpacing: 0.2,
+          }}
+        >
+          {statusKey === 'live' ? <LiveBall /> : null}
+          {getStatusLabel(match)}
+        </div>
       </div>
     </div>
   )
@@ -381,17 +381,18 @@ function CompactStandingsCard({
       style={{
         background: '#fff',
         border: '1px solid #e5e7eb',
-        borderRadius: 18,
+        borderRadius: 22,
         padding: 16,
-        boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
-        marginBottom: 14,
+        boxShadow: '0 6px 18px rgba(0,0,0,0.05)',
+        marginBottom: 16,
       }}
     >
       <div
         style={{
-          fontWeight: 800,
-          fontSize: 26,
+          fontWeight: 900,
+          fontSize: 24,
           marginBottom: 14,
+          lineHeight: 1.1,
         }}
       >
         {title}
@@ -440,7 +441,7 @@ function CompactStandingsCard({
               minWidth: 0,
             }}
           >
-            <div style={{ width: 18, fontWeight: 700 }}>{i + 1}</div>
+            <div style={{ width: 18, fontWeight: 800 }}>{i + 1}</div>
 
             {t.logo_url ? (
               <img
@@ -458,7 +459,7 @@ function CompactStandingsCard({
 
             <div
               style={{
-                fontWeight: 700,
+                fontWeight: 800,
                 overflowWrap: 'anywhere',
               }}
             >
@@ -479,7 +480,7 @@ function CompactStandingsCard({
             <span>{t.PE}</span>
             <span>{t.PP}</span>
             <span>{t.DIF}</span>
-            <span style={{ fontWeight: 800 }}>{t.PTS}</span>
+            <span style={{ fontWeight: 900 }}>{t.PTS}</span>
           </div>
         </div>
       ))}
@@ -505,17 +506,18 @@ function FullScheduleTable({
       style={{
         background: '#fff',
         border: '1px solid #e5e7eb',
-        borderRadius: 18,
+        borderRadius: 22,
         padding: 16,
-        boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
-        marginBottom: 14,
+        boxShadow: '0 6px 18px rgba(0,0,0,0.05)',
+        marginBottom: 16,
       }}
     >
       <div
         style={{
-          fontWeight: 800,
-          fontSize: 26,
+          fontWeight: 900,
+          fontSize: 24,
           marginBottom: 14,
+          lineHeight: 1.1,
         }}
       >
         {title}
@@ -530,7 +532,7 @@ function FullScheduleTable({
           }}
         >
           <thead>
-            <tr style={{ background: '#111', color: 'white' }}>
+            <tr style={{ background: '#111827', color: 'white' }}>
               <th style={{ padding: 10, textAlign: 'left' }}>Hora</th>
               {sportCols.map((s) => (
                 <th key={s.id} style={{ padding: 10, textAlign: 'left' }}>
@@ -549,7 +551,7 @@ function FullScheduleTable({
                 <td
                   style={{
                     padding: 10,
-                    fontWeight: 700,
+                    fontWeight: 800,
                     verticalAlign: 'top',
                     whiteSpace: 'nowrap',
                   }}
@@ -574,7 +576,7 @@ function FullScheduleTable({
                   const teamA = getTeam(teams, match.team_a_id)
                   const teamB = getTeam(teams, match.team_b_id)
                   const score = getDisplayScores(match)
-                  const style = getStatusStyles(match)
+                  const statusTheme = getStatusTheme(match)
                   const statusKey = getStatusKey(match)
 
                   return (
@@ -606,7 +608,7 @@ function FullScheduleTable({
 
                       <div
                         style={{
-                          fontWeight: 800,
+                          fontWeight: 900,
                           fontSize: 18,
                           textAlign: 'center',
                           margin: '6px 0',
@@ -635,18 +637,18 @@ function FullScheduleTable({
 
                       <div>
                         <span
-                          className={style.className}
+                          className={statusTheme.badgeClass}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 4,
-                            background: style.background,
-                            color: style.color,
-                            border: `1px solid ${style.border}`,
+                            background: statusTheme.badgeBg,
+                            color: statusTheme.badgeColor,
+                            border: `1px solid ${statusTheme.badgeBorder}`,
                             padding: '2px 6px',
                             borderRadius: 6,
                             fontSize: 10,
-                            fontWeight: 700,
+                            fontWeight: 800,
                           }}
                         >
                           {statusKey === 'live' ? <LiveBall /> : null}
