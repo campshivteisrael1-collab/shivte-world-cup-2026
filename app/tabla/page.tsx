@@ -53,38 +53,38 @@ function getStatusStyles(match: any) {
 
   if (key === 'finished') {
     return {
-      background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+      background: '#dcfce7',
       color: '#166534',
-      border: '1px solid #86efac',
+      border: '#86efac',
       className: 'status-finished',
       cardBorder: '#bbf7d0',
-      cardBackground: 'linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%)',
-      cardShadow: '0 8px 24px rgba(34,197,94,0.10)',
+      cardBackground: '#ffffff',
+      cardShadow: '0 8px 20px rgba(34,197,94,0.08)',
       cardClassName: 'card-finished',
     }
   }
 
   if (key === 'live') {
     return {
-      background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+      background: '#dbeafe',
       color: '#1d4ed8',
-      border: '1px solid #93c5fd',
+      border: '#93c5fd',
       className: 'status-live',
       cardBorder: '#93c5fd',
-      cardBackground: 'linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)',
-      cardShadow: '0 10px 28px rgba(59,130,246,0.16)',
+      cardBackground: '#ffffff',
+      cardShadow: '0 10px 24px rgba(59,130,246,0.12)',
       cardClassName: 'card-live',
     }
   }
 
   return {
-    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+    background: '#fef3c7',
     color: '#92400e',
-    border: '1px solid #fcd34d',
+    border: '#fcd34d',
     className: 'status-pending',
     cardBorder: '#fcd34d',
-    cardBackground: 'linear-gradient(180deg, #ffffff 0%, #fffaf0 100%)',
-    cardShadow: '0 8px 22px rgba(245,158,11,0.10)',
+    cardBackground: '#ffffff',
+    cardShadow: '0 8px 18px rgba(245,158,11,0.08)',
     cardClassName: 'card-pending',
   }
 }
@@ -146,6 +146,7 @@ function LiveBall() {
         boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
         display: 'inline-block',
         marginRight: 6,
+        flexShrink: 0,
       }}
     />
   )
@@ -172,15 +173,11 @@ function MatchCard({
       className={style.cardClassName}
       style={{
         borderRadius: isFinal ? 20 : 18,
-        padding: 16,
-        marginBottom: 16,
-        background: isFinal
-          ? 'linear-gradient(180deg, #ffffff 0%, #fff7ed 100%)'
-          : style.cardBackground,
-        border: isFinal ? '1px solid #f59e0b' : `1px solid ${style.cardBorder}`,
-        boxShadow: isFinal
-          ? '0 12px 28px rgba(245,158,11,0.18)'
-          : style.cardShadow,
+        padding: 14,
+        marginBottom: 14,
+        background: isFinal ? '#fffaf0' : style.cardBackground,
+        border: `1px solid ${isFinal ? '#f59e0b' : style.cardBorder}`,
+        boxShadow: isFinal ? '0 12px 26px rgba(245,158,11,0.14)' : style.cardShadow,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -196,7 +193,7 @@ function MatchCard({
               width: '28%',
               height: '100%',
               background:
-                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%)',
+                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.58) 50%, rgba(255,255,255,0) 100%)',
               pointerEvents: 'none',
             }}
           />
@@ -204,9 +201,9 @@ function MatchCard({
             style={{
               position: 'absolute',
               top: 10,
-              right: 14,
+              right: 12,
               fontSize: 22,
-              opacity: 0.28,
+              opacity: 0.18,
               pointerEvents: 'none',
             }}
           >
@@ -217,10 +214,10 @@ function MatchCard({
 
       <div
         style={{
-          fontWeight: 'bold',
-          fontSize: 17,
-          marginBottom: 6,
-          lineHeight: 1.25,
+          fontWeight: 800,
+          fontSize: 16,
+          marginBottom: 8,
+          lineHeight: 1.2,
           position: 'relative',
           zIndex: 1,
         }}
@@ -230,8 +227,8 @@ function MatchCard({
 
       <div
         style={{
-          fontSize: 13,
-          color: '#666',
+          fontSize: 12,
+          color: '#6b7280',
           marginBottom: 4,
           position: 'relative',
           zIndex: 1,
@@ -243,9 +240,9 @@ function MatchCard({
       {match.match_time && (
         <div
           style={{
-            fontSize: 13,
-            color: '#666',
-            marginBottom: 10,
+            fontSize: 12,
+            color: '#6b7280',
+            marginBottom: 12,
             position: 'relative',
             zIndex: 1,
           }}
@@ -257,105 +254,110 @@ function MatchCard({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr auto 1fr',
-          gap: 8,
+          gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)',
           alignItems: 'center',
+          gap: 8,
           marginBottom: 12,
           position: 'relative',
           zIndex: 1,
         }}
       >
-        <div style={{ textAlign: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
+          {teamA?.logo_url ? (
+            <img
+              src={teamA.logo_url}
+              alt={teamA.name}
+              style={{
+                width: isFinal ? 32 : 28,
+                height: isFinal ? 32 : 28,
+                objectFit: 'contain',
+                display: 'block',
+                flexShrink: 0,
+              }}
+            />
+          ) : null}
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'center',
-              marginBottom: 6,
-            }}
-          >
-            {teamA?.logo_url ? (
-              <img
-                src={teamA.logo_url}
-                alt={teamA.name}
-                style={{
-                  width: isFinal ? 40 : 34,
-                  height: isFinal ? 40 : 34,
-                  objectFit: 'contain',
-                  display: 'block',
-                }}
-              />
-            ) : null}
-          </div>
-          <div
-            style={{
-              fontWeight: 'bold',
-              fontSize: 16,
+              fontWeight: 700,
+              fontSize: 15,
+              lineHeight: 1.1,
               overflowWrap: 'anywhere',
             }}
           >
-            {teamA?.name}
+            {teamA?.name || 'Equipo'}
           </div>
         </div>
 
         <div
           className={statusKey === 'live' ? 'score-live' : ''}
           style={{
-            fontSize: isFinal ? 34 : 30,
-            fontWeight: 'bold',
-            textAlign: 'center',
-            minWidth: isFinal ? 96 : 88,
+            fontSize: isFinal ? 30 : 28,
+            fontWeight: 900,
             lineHeight: 1,
+            minWidth: 72,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
           }}
         >
           {score.a} - {score.b}
         </div>
 
-        <div style={{ textAlign: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            justifyContent: 'flex-end',
+            minWidth: 0,
+          }}
+        >
           <div
             style={{
-              display: 'flex',
-              justifyContent: 'center',
-              marginBottom: 6,
-            }}
-          >
-            {teamB?.logo_url ? (
-              <img
-                src={teamB.logo_url}
-                alt={teamB.name}
-                style={{
-                  width: isFinal ? 40 : 34,
-                  height: isFinal ? 40 : 34,
-                  objectFit: 'contain',
-                  display: 'block',
-                }}
-              />
-            ) : null}
-          </div>
-          <div
-            style={{
-              fontWeight: 'bold',
-              fontSize: 16,
+              fontWeight: 700,
+              fontSize: 15,
+              lineHeight: 1.1,
               overflowWrap: 'anywhere',
+              textAlign: 'right',
             }}
           >
-            {teamB?.name}
+            {teamB?.name || 'Equipo'}
           </div>
+          {teamB?.logo_url ? (
+            <img
+              src={teamB.logo_url}
+              alt={teamB.name}
+              style={{
+                width: isFinal ? 32 : 28,
+                height: isFinal ? 32 : 28,
+                objectFit: 'contain',
+                display: 'block',
+                flexShrink: 0,
+              }}
+            />
+          ) : null}
         </div>
       </div>
 
       <div
         className={style.className}
         style={{
-          marginTop: 8,
-          fontSize: 12,
-          fontWeight: 'bold',
+          marginTop: 4,
+          fontSize: 11,
+          fontWeight: 800,
           display: 'inline-flex',
           alignItems: 'center',
-          padding: '4px 10px',
+          padding: '5px 11px',
           borderRadius: 999,
           background: style.background,
           color: style.color,
-          border: style.border,
+          border: `1px solid ${style.border}`,
           position: 'relative',
           zIndex: 1,
         }}
@@ -640,7 +642,7 @@ function FullScheduleTable({
                             gap: 4,
                             background: style.background,
                             color: style.color,
-                            border: style.border,
+                            border: `1px solid ${style.border}`,
                             padding: '2px 6px',
                             borderRadius: 6,
                             fontSize: 10,
@@ -920,7 +922,7 @@ export default function TablaPage() {
 
       <main
         style={{
-          padding: 16,
+          padding: 14,
           maxWidth: 760,
           margin: '0 auto',
           fontFamily: 'Arial, sans-serif',
@@ -940,18 +942,10 @@ export default function TablaPage() {
             alt="Resultados Calendario Clasificación"
             style={{
               width: '100%',
-              height: 195,
+              height: 180,
               objectFit: 'cover',
+              objectPosition: 'center',
               display: 'block',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background:
-                'linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.08) 100%)',
-              pointerEvents: 'none',
             }}
           />
         </div>
@@ -975,12 +969,13 @@ export default function TablaPage() {
 
         <section style={{ marginBottom: 28 }}>
           {Object.entries(matchesByJornada).map(([jornada, jornadaMatches]) => (
-            <div key={jornada} style={{ marginBottom: 22 }}>
+            <div key={jornada} style={{ marginBottom: 20 }}>
               <div
                 style={{
-                  fontWeight: 800,
-                  fontSize: 28,
+                  fontWeight: 900,
+                  fontSize: 26,
                   marginBottom: 12,
+                  lineHeight: 1.05,
                 }}
               >
                 {jornada}
@@ -1000,8 +995,14 @@ export default function TablaPage() {
 
         <section style={{ marginBottom: 28 }}>
           {quarterMatches.length > 0 && (
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ fontWeight: 800, fontSize: 28, marginBottom: 12 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div
+                style={{
+                  fontWeight: 900,
+                  fontSize: 26,
+                  marginBottom: 12,
+                }}
+              >
                 Cuartos de final
               </div>
               {quarterMatches.map((match) => (
@@ -1016,8 +1017,14 @@ export default function TablaPage() {
           )}
 
           {semiMatches.length > 0 && (
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ fontWeight: 800, fontSize: 28, marginBottom: 12 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div
+                style={{
+                  fontWeight: 900,
+                  fontSize: 26,
+                  marginBottom: 12,
+                }}
+              >
                 Semifinal
               </div>
               {semiMatches.map((match) => (
@@ -1032,8 +1039,14 @@ export default function TablaPage() {
           )}
 
           {finalMatches.length > 0 && (
-            <div style={{ marginBottom: 22 }}>
-              <div style={{ fontWeight: 800, fontSize: 28, marginBottom: 12 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div
+                style={{
+                  fontWeight: 900,
+                  fontSize: 26,
+                  marginBottom: 12,
+                }}
+              >
                 Final
               </div>
               {finalMatches.map((match) => (
