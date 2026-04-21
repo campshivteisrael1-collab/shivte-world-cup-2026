@@ -129,6 +129,20 @@ function getTeamGroup(team: any) {
   return team?.group_name || team?.group || team?.grupo || 'Sin grupo'
 }
 
+function getTimerText(match: any) {
+  if (!match.started_at) return null
+  if (match.status === 'submitted') return null
+
+  const started = new Date(match.started_at).getTime()
+  const now = Date.now()
+  const diffSeconds = Math.max(0, Math.floor((now - started) / 1000))
+
+  const minutes = Math.floor(diffSeconds / 60)
+  const seconds = diffSeconds % 60
+
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
 function LiveBall() {
   return (
     <span
@@ -172,8 +186,8 @@ function TeamMini({
           src={team.logo_url}
           alt={team?.name || 'Equipo'}
           style={{
-            width: 24,
-            height: 24,
+            width: 20,
+            height: 20,
             objectFit: 'contain',
             flexShrink: 0,
           }}
@@ -182,7 +196,7 @@ function TeamMini({
 
       <span
         style={{
-          fontSize: 15,
+          fontSize: 14,
           fontWeight: 800,
           lineHeight: 1.1,
           textAlign: isRight ? 'right' : 'left',
@@ -197,8 +211,8 @@ function TeamMini({
           src={team.logo_url}
           alt={team?.name || 'Equipo'}
           style={{
-            width: 24,
-            height: 24,
+            width: 20,
+            height: 20,
             objectFit: 'contain',
             flexShrink: 0,
           }}
@@ -222,14 +236,15 @@ function MatchCard({
   const score = getDisplayScores(match)
   const theme = getStatusTheme(match)
   const statusKey = getStatusKey(match)
+  const timerText = getTimerText(match)
 
   return (
     <div
       className={theme.cardClass}
       style={{
-        borderRadius: 26,
-        padding: 18,
-        marginBottom: 16,
+        borderRadius: 20,
+        padding: 14,
+        marginBottom: 12,
         background: theme.cardBg,
         border: `1px solid ${theme.cardBorder}`,
         boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
@@ -238,9 +253,9 @@ function MatchCard({
       <div
         style={{
           fontWeight: 900,
-          fontSize: 18,
+          fontSize: 16,
           lineHeight: 1.15,
-          marginBottom: 12,
+          marginBottom: 8,
         }}
       >
         {getMatchTitle(match)}
@@ -248,9 +263,9 @@ function MatchCard({
 
       <div
         style={{
-          fontSize: 13,
+          fontSize: 12,
           color: '#6b7280',
-          marginBottom: 4,
+          marginBottom: 3,
           letterSpacing: 0.2,
         }}
       >
@@ -259,12 +274,38 @@ function MatchCard({
 
       <div
         style={{
-          fontSize: 13,
-          color: '#6b7280',
-          marginBottom: 18,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+          marginBottom: 12,
         }}
       >
-        {match.match_time || 'Sin horario'}
+        <div
+          style={{
+            fontSize: 12,
+            color: '#6b7280',
+          }}
+        >
+          {match.match_time || 'Sin horario'}
+        </div>
+
+        {timerText ? (
+          <div
+            className="score-live"
+            style={{
+              fontSize: 12,
+              fontWeight: 900,
+              color: '#1d4ed8',
+              background: '#dbeafe',
+              border: '1px solid #93c5fd',
+              padding: '3px 8px',
+              borderRadius: 999,
+            }}
+          >
+            ⏱ {timerText}
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -272,8 +313,8 @@ function MatchCard({
           display: 'grid',
           gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)',
           alignItems: 'center',
-          gap: 10,
-          marginBottom: 18,
+          gap: 8,
+          marginBottom: 12,
         }}
       >
         <TeamMini team={teamA} align="left" />
@@ -281,12 +322,12 @@ function MatchCard({
         <div
           className={statusKey === 'live' ? 'score-live' : ''}
           style={{
-            fontSize: 34,
+            fontSize: 28,
             fontWeight: 900,
             lineHeight: 1,
             textAlign: 'center',
             whiteSpace: 'nowrap',
-            minWidth: 90,
+            minWidth: 72,
           }}
         >
           {score.a} - {score.b}
@@ -300,9 +341,9 @@ function MatchCard({
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          padding: '6px 14px',
+          padding: '5px 12px',
           borderRadius: 999,
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 900,
           background: theme.badgeBg,
           color: theme.badgeColor,
