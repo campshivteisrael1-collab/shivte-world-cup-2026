@@ -139,7 +139,6 @@ function getTimerText(match: MatchRow, nowMs: number) {
 
   const started = new Date(match.started_at).getTime()
   const diffSeconds = Math.max(0, Math.floor((nowMs - started) / 1000))
-
   const minutes = Math.floor(diffSeconds / 60)
   const seconds = diffSeconds % 60
 
@@ -187,9 +186,9 @@ function MatchCard({
     <div
       className={theme.cardClass}
       style={{
-        borderRadius: 22,
-        padding: 16,
-        marginBottom: 14,
+        borderRadius: 20,
+        padding: 13,
+        marginBottom: 10,
         background: theme.cardBg,
         border: `1px solid ${theme.cardBorder}`,
         boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
@@ -200,7 +199,7 @@ function MatchCard({
           fontWeight: 900,
           fontSize: 16,
           lineHeight: 1.15,
-          marginBottom: 10,
+          marginBottom: 8,
         }}
       >
         {getMatchTitle(match)}
@@ -210,7 +209,7 @@ function MatchCard({
         style={{
           fontSize: 12,
           color: '#6b7280',
-          marginBottom: 4,
+          marginBottom: 3,
           letterSpacing: 0.2,
         }}
       >
@@ -223,7 +222,7 @@ function MatchCard({
           alignItems: 'center',
           gap: 8,
           flexWrap: 'wrap',
-          marginBottom: 16,
+          marginBottom: 12,
         }}
       >
         <div
@@ -257,9 +256,9 @@ function MatchCard({
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr auto 1fr',
-          gap: 10,
+          gap: 8,
           alignItems: 'center',
-          marginBottom: 16,
+          marginBottom: 12,
         }}
       >
         <div
@@ -273,18 +272,18 @@ function MatchCard({
               src={teamA.logo_url}
               alt={teamA?.name || 'Equipo'}
               style={{
-                width: 34,
-                height: 34,
+                width: 28,
+                height: 28,
                 objectFit: 'contain',
                 display: 'block',
-                margin: '0 auto 8px auto',
+                margin: '0 auto 6px auto',
               }}
             />
           ) : null}
 
           <div
             style={{
-              fontSize: 15,
+              fontSize: 13,
               fontWeight: 800,
               lineHeight: 1.12,
               wordBreak: 'break-word',
@@ -297,12 +296,12 @@ function MatchCard({
         <div
           className={statusKey === 'live' ? 'score-live' : ''}
           style={{
-            fontSize: 30,
+            fontSize: 25,
             fontWeight: 900,
             lineHeight: 1,
             textAlign: 'center',
             whiteSpace: 'nowrap',
-            minWidth: 76,
+            minWidth: 62,
           }}
         >
           {score.a} - {score.b}
@@ -319,18 +318,18 @@ function MatchCard({
               src={teamB.logo_url}
               alt={teamB?.name || 'Equipo'}
               style={{
-                width: 34,
-                height: 34,
+                width: 28,
+                height: 28,
                 objectFit: 'contain',
                 display: 'block',
-                margin: '0 auto 8px auto',
+                margin: '0 auto 6px auto',
               }}
             />
           ) : null}
 
           <div
             style={{
-              fontSize: 15,
+              fontSize: 13,
               fontWeight: 800,
               lineHeight: 1.12,
               wordBreak: 'break-word',
@@ -346,9 +345,9 @@ function MatchCard({
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          padding: '5px 12px',
+          padding: '4px 10px',
           borderRadius: 999,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: 900,
           background: theme.badgeBg,
           color: theme.badgeColor,
@@ -925,7 +924,7 @@ export default function TablaPage() {
             alt="Resultados Calendario Clasificación"
             style={{
               width: '100%',
-              height: 132,
+              height: 118,
               objectFit: 'cover',
               display: 'block',
             }}
@@ -951,11 +950,11 @@ export default function TablaPage() {
 
         <section style={{ marginBottom: 28 }}>
           {Object.entries(matchesByJornada).map(([jornada, jornadaMatches]) => (
-            <div key={jornada} style={{ marginBottom: 20 }}>
+            <div key={jornada} style={{ marginBottom: 18 }}>
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 22,
+                  fontSize: 20,
                   marginBottom: 10,
                   lineHeight: 1.05,
                 }}
@@ -978,11 +977,11 @@ export default function TablaPage() {
 
         <section style={{ marginBottom: 28 }}>
           {quarterMatches.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 18 }}>
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 22,
+                  fontSize: 20,
                   marginBottom: 10,
                 }}
               >
@@ -1001,11 +1000,11 @@ export default function TablaPage() {
           )}
 
           {semiMatches.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 18 }}>
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 22,
+                  fontSize: 20,
                   marginBottom: 10,
                 }}
               >
@@ -1024,11 +1023,11 @@ export default function TablaPage() {
           )}
 
           {finalMatches.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 18 }}>
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 22,
+                  fontSize: 20,
                   marginBottom: 10,
                 }}
               >
