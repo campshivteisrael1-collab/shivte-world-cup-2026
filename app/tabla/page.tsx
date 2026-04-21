@@ -53,39 +53,36 @@ function getStatusTheme(match: any) {
 
   if (key === 'finished') {
     return {
-      badgeBg: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+      badgeBg: '#dcfce7',
       badgeColor: '#166534',
       badgeBorder: '#86efac',
-      cardBg: 'linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%)',
+      cardBg: '#f0fdf4',
       cardBorder: '#bbf7d0',
-      cardShadow: '0 10px 24px rgba(34,197,94,0.10)',
-      badgeClass: 'status-finished',
       cardClass: 'card-finished',
+      badgeClass: 'status-finished',
     }
   }
 
   if (key === 'live') {
     return {
-      badgeBg: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)',
+      badgeBg: '#dbeafe',
       badgeColor: '#1d4ed8',
       badgeBorder: '#93c5fd',
-      cardBg: 'linear-gradient(180deg, #ffffff 0%, #eff6ff 100%)',
+      cardBg: '#eff6ff',
       cardBorder: '#93c5fd',
-      cardShadow: '0 12px 28px rgba(59,130,246,0.14)',
-      badgeClass: 'status-live',
       cardClass: 'card-live',
+      badgeClass: 'status-live',
     }
   }
 
   return {
-    badgeBg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+    badgeBg: '#fef3c7',
     badgeColor: '#92400e',
     badgeBorder: '#fcd34d',
-    cardBg: 'linear-gradient(180deg, #ffffff 0%, #fffaf0 100%)',
-    cardBorder: '#fcd34d',
-    cardShadow: '0 10px 22px rgba(245,158,11,0.10)',
-    badgeClass: 'status-pending',
+    cardBg: '#ffffff',
+    cardBorder: '#e5e7eb',
     cardClass: 'card-pending',
+    badgeClass: 'status-pending',
   }
 }
 
@@ -110,15 +107,15 @@ function parseTimeRangeToMinutes(value: string | null | undefined) {
 function getDisplayScores(match: any) {
   if (match.status === 'submitted') {
     return {
-      a: match.score_a ?? 0,
-      b: match.score_b ?? 0,
+      a: Number(match.score_a ?? 0),
+      b: Number(match.score_b ?? 0),
     }
   }
 
   if (match.started_at) {
     return {
-      a: match.live_score_a ?? 0,
-      b: match.live_score_b ?? 0,
+      a: Number(match.live_score_a ?? 0),
+      b: Number(match.live_score_b ?? 0),
     }
   }
 
@@ -134,21 +131,80 @@ function getTeamGroup(team: any) {
 
 function LiveBall() {
   return (
-    <div
+    <span
       className="live-ball"
       style={{
-        width: 11,
-        height: 11,
+        width: 10,
+        height: 10,
+        display: 'inline-block',
         borderRadius: '50%',
         background:
-          'radial-gradient(circle at 35% 35%, #ffffff 0%, #f3f4f6 38%, #111827 39%, #111827 52%, #f9fafb 53%, #ffffff 100%)',
-        border: '1px solid rgba(0,0,0,0.18)',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
-        display: 'inline-block',
+          'radial-gradient(circle at 35% 35%, #ffffff 0%, #f3f4f6 38%, #111827 39%, #111827 52%, #ffffff 53%, #ffffff 100%)',
+        border: '1px solid rgba(0,0,0,0.15)',
         marginRight: 6,
         flexShrink: 0,
       }}
     />
+  )
+}
+
+function TeamMini({
+  team,
+  align = 'left',
+}: {
+  team: any
+  align?: 'left' | 'right'
+}) {
+  const isRight = align === 'right'
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: isRight ? 'flex-end' : 'flex-start',
+        gap: 6,
+        minWidth: 0,
+      }}
+    >
+      {!isRight && team?.logo_url ? (
+        <img
+          src={team.logo_url}
+          alt={team?.name || 'Equipo'}
+          style={{
+            width: 24,
+            height: 24,
+            objectFit: 'contain',
+            flexShrink: 0,
+          }}
+        />
+      ) : null}
+
+      <span
+        style={{
+          fontSize: 15,
+          fontWeight: 800,
+          lineHeight: 1.1,
+          textAlign: isRight ? 'right' : 'left',
+          wordBreak: 'break-word',
+        }}
+      >
+        {team?.name || 'Equipo'}
+      </span>
+
+      {isRight && team?.logo_url ? (
+        <img
+          src={team.logo_url}
+          alt={team?.name || 'Equipo'}
+          style={{
+            width: 24,
+            height: 24,
+            objectFit: 'contain',
+            flexShrink: 0,
+          }}
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -164,206 +220,97 @@ function MatchCard({
   const teamA = getTeam(teams, match.team_a_id)
   const teamB = getTeam(teams, match.team_b_id)
   const score = getDisplayScores(match)
-  const statusTheme = getStatusTheme(match)
+  const theme = getStatusTheme(match)
   const statusKey = getStatusKey(match)
-  const isFinal = match.phase === 'final'
 
   return (
     <div
-      className={statusTheme.cardClass}
+      className={theme.cardClass}
       style={{
-        borderRadius: 22,
+        borderRadius: 26,
         padding: 18,
         marginBottom: 16,
-        background: isFinal
-          ? 'linear-gradient(180deg, #fff7ed 0%, #ffffff 100%)'
-          : statusTheme.cardBg,
-        border: `1px solid ${isFinal ? '#f59e0b' : statusTheme.cardBorder}`,
-        boxShadow: isFinal
-          ? '0 14px 32px rgba(245,158,11,0.18)'
-          : statusTheme.cardShadow,
-        position: 'relative',
-        overflow: 'hidden',
+        background: theme.cardBg,
+        border: `1px solid ${theme.cardBorder}`,
+        boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
       }}
     >
-      {isFinal && (
-        <>
-          <div
-            className="final-shine"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: '-35%',
-              width: '28%',
-              height: '100%',
-              background:
-                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%)',
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: 12,
-              right: 14,
-              fontSize: 22,
-              opacity: 0.18,
-              pointerEvents: 'none',
-            }}
-          >
-            🏆
-          </div>
-        </>
-      )}
+      <div
+        style={{
+          fontWeight: 900,
+          fontSize: 18,
+          lineHeight: 1.15,
+          marginBottom: 12,
+        }}
+      >
+        {getMatchTitle(match)}
+      </div>
 
-      <div style={{ position: 'relative', zIndex: 1 }}>
+      <div
+        style={{
+          fontSize: 13,
+          color: '#6b7280',
+          marginBottom: 4,
+          letterSpacing: 0.2,
+        }}
+      >
+        {sportName}
+      </div>
+
+      <div
+        style={{
+          fontSize: 13,
+          color: '#6b7280',
+          marginBottom: 18,
+        }}
+      >
+        {match.match_time || 'Sin horario'}
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 18,
+        }}
+      >
+        <TeamMini team={teamA} align="left" />
+
         <div
+          className={statusKey === 'live' ? 'score-live' : ''}
           style={{
+            fontSize: 34,
             fontWeight: 900,
-            fontSize: 17,
-            marginBottom: 8,
-            lineHeight: 1.2,
+            lineHeight: 1,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            minWidth: 90,
           }}
         >
-          {getMatchTitle(match)}
+          {score.a} - {score.b}
         </div>
 
-        <div
-          style={{
-            fontSize: 13,
-            color: '#6b7280',
-            marginBottom: 4,
-            fontWeight: 500,
-            letterSpacing: 0.2,
-          }}
-        >
-          {sportName}
-        </div>
+        <TeamMini team={teamB} align="right" />
+      </div>
 
-        {match.match_time && (
-          <div
-            style={{
-              fontSize: 13,
-              color: '#6b7280',
-              marginBottom: 16,
-            }}
-          >
-            {match.match_time}
-          </div>
-        )}
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr auto 1fr',
-            gap: 10,
-            alignItems: 'center',
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 0,
-            }}
-          >
-            {teamA?.logo_url ? (
-              <img
-                src={teamA.logo_url}
-                alt={teamA.name}
-                style={{
-                  width: isFinal ? 42 : 36,
-                  height: isFinal ? 42 : 36,
-                  objectFit: 'contain',
-                  display: 'block',
-                  marginBottom: 8,
-                }}
-              />
-            ) : null}
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 16,
-                textAlign: 'center',
-                lineHeight: 1.1,
-                overflowWrap: 'anywhere',
-              }}
-            >
-              {teamA?.name || 'Equipo'}
-            </div>
-          </div>
-
-          <div
-            className={statusKey === 'live' ? 'score-live' : ''}
-            style={{
-              fontSize: isFinal ? 36 : 34,
-              fontWeight: 900,
-              lineHeight: 1,
-              minWidth: isFinal ? 110 : 96,
-              textAlign: 'center',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {score.a} - {score.b}
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 0,
-            }}
-          >
-            {teamB?.logo_url ? (
-              <img
-                src={teamB.logo_url}
-                alt={teamB.name}
-                style={{
-                  width: isFinal ? 42 : 36,
-                  height: isFinal ? 42 : 36,
-                  objectFit: 'contain',
-                  display: 'block',
-                  marginBottom: 8,
-                }}
-              />
-            ) : null}
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 16,
-                textAlign: 'center',
-                lineHeight: 1.1,
-                overflowWrap: 'anywhere',
-              }}
-            >
-              {teamB?.name || 'Equipo'}
-            </div>
-          </div>
-        </div>
-
-        <div
-          className={statusTheme.badgeClass}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            padding: '6px 14px',
-            borderRadius: 999,
-            background: statusTheme.badgeBg,
-            color: statusTheme.badgeColor,
-            border: `1px solid ${statusTheme.badgeBorder}`,
-            fontSize: 12,
-            fontWeight: 900,
-            letterSpacing: 0.2,
-          }}
-        >
-          {statusKey === 'live' ? <LiveBall /> : null}
-          {getStatusLabel(match)}
-        </div>
+      <div
+        className={theme.badgeClass}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '6px 14px',
+          borderRadius: 999,
+          fontSize: 12,
+          fontWeight: 900,
+          background: theme.badgeBg,
+          color: theme.badgeColor,
+          border: `1px solid ${theme.badgeBorder}`,
+        }}
+      >
+        {statusKey === 'live' ? <LiveBall /> : null}
+        {getStatusLabel(match)}
       </div>
     </div>
   )
@@ -383,7 +330,7 @@ function CompactStandingsCard({
         border: '1px solid #e5e7eb',
         borderRadius: 22,
         padding: 16,
-        boxShadow: '0 6px 18px rgba(0,0,0,0.05)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
         marginBottom: 16,
       }}
     >
@@ -392,7 +339,6 @@ function CompactStandingsCard({
           fontWeight: 900,
           fontSize: 24,
           marginBottom: 14,
-          lineHeight: 1.1,
         }}
       >
         {title}
@@ -441,7 +387,7 @@ function CompactStandingsCard({
               minWidth: 0,
             }}
           >
-            <div style={{ width: 18, fontWeight: 800 }}>{i + 1}</div>
+            <div style={{ width: 18, fontWeight: 900 }}>{i + 1}</div>
 
             {t.logo_url ? (
               <img
@@ -451,7 +397,6 @@ function CompactStandingsCard({
                   width: 24,
                   height: 24,
                   objectFit: 'contain',
-                  display: 'block',
                   flexShrink: 0,
                 }}
               />
@@ -460,7 +405,7 @@ function CompactStandingsCard({
             <div
               style={{
                 fontWeight: 800,
-                overflowWrap: 'anywhere',
+                wordBreak: 'break-word',
               }}
             >
               {t.team}
@@ -508,7 +453,7 @@ function FullScheduleTable({
         border: '1px solid #e5e7eb',
         borderRadius: 22,
         padding: 16,
-        boxShadow: '0 6px 18px rgba(0,0,0,0.05)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
         marginBottom: 16,
       }}
     >
@@ -517,7 +462,6 @@ function FullScheduleTable({
           fontWeight: 900,
           fontSize: 24,
           marginBottom: 14,
-          lineHeight: 1.1,
         }}
       >
         {title}
@@ -551,7 +495,7 @@ function FullScheduleTable({
                 <td
                   style={{
                     padding: 10,
-                    fontWeight: 800,
+                    fontWeight: 900,
                     verticalAlign: 'top',
                     whiteSpace: 'nowrap',
                   }}
@@ -576,7 +520,7 @@ function FullScheduleTable({
                   const teamA = getTeam(teams, match.team_a_id)
                   const teamB = getTeam(teams, match.team_b_id)
                   const score = getDisplayScores(match)
-                  const statusTheme = getStatusTheme(match)
+                  const theme = getStatusTheme(match)
                   const statusKey = getStatusKey(match)
 
                   return (
@@ -598,7 +542,6 @@ function FullScheduleTable({
                                 width: 22,
                                 height: 22,
                                 objectFit: 'contain',
-                                display: 'block',
                               }}
                             />
                           ) : null}
@@ -627,7 +570,6 @@ function FullScheduleTable({
                                 width: 22,
                                 height: 22,
                                 objectFit: 'contain',
-                                display: 'block',
                               }}
                             />
                           ) : null}
@@ -637,14 +579,14 @@ function FullScheduleTable({
 
                       <div>
                         <span
-                          className={statusTheme.badgeClass}
+                          className={theme.badgeClass}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 4,
-                            background: statusTheme.badgeBg,
-                            color: statusTheme.badgeColor,
-                            border: `1px solid ${statusTheme.badgeBorder}`,
+                            background: theme.badgeBg,
+                            color: theme.badgeColor,
+                            border: `1px solid ${theme.badgeBorder}`,
                             padding: '2px 6px',
                             borderRadius: 6,
                             fontSize: 10,
@@ -877,20 +819,15 @@ export default function TablaPage() {
 
         @keyframes fifaScorePop {
           0% { transform: scale(1); }
-          50% { transform: scale(1.05); }
+          50% { transform: scale(1.04); }
           100% { transform: scale(1); }
-        }
-
-        @keyframes finalShineMove {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(420%); }
         }
 
         @keyframes ballBounce {
           0%, 100% { transform: translateY(0) rotate(0deg); }
-          25% { transform: translateY(-1px) rotate(12deg); }
-          50% { transform: translateY(-2px) rotate(24deg); }
-          75% { transform: translateY(-1px) rotate(12deg); }
+          25% { transform: translateY(-1px) rotate(10deg); }
+          50% { transform: translateY(-2px) rotate(20deg); }
+          75% { transform: translateY(-1px) rotate(10deg); }
         }
 
         .status-live {
@@ -913,10 +850,6 @@ export default function TablaPage() {
           animation: fifaScorePop 1.5s ease-in-out infinite;
         }
 
-        .final-shine {
-          animation: finalShineMove 2.8s linear infinite;
-        }
-
         .live-ball {
           animation: ballBounce 1s ease-in-out infinite;
         }
@@ -925,18 +858,17 @@ export default function TablaPage() {
       <main
         style={{
           padding: 14,
-          maxWidth: 760,
+          maxWidth: 520,
           margin: '0 auto',
           fontFamily: 'Arial, sans-serif',
         }}
       >
         <div
           style={{
-            borderRadius: 22,
+            borderRadius: 24,
             overflow: 'hidden',
             marginBottom: 18,
-            boxShadow: '0 16px 34px rgba(0,0,0,0.22)',
-            position: 'relative',
+            boxShadow: '0 14px 30px rgba(0,0,0,0.18)',
           }}
         >
           <img
@@ -944,9 +876,8 @@ export default function TablaPage() {
             alt="Resultados Calendario Clasificación"
             style={{
               width: '100%',
-              height: 180,
+              height: 170,
               objectFit: 'cover',
-              objectPosition: 'center',
               display: 'block',
             }}
           />
@@ -956,13 +887,13 @@ export default function TablaPage() {
           href="/"
           style={{
             display: 'inline-block',
-            marginBottom: 16,
-            padding: '8px 14px',
+            marginBottom: 18,
+            padding: '10px 16px',
             background: '#111827',
             color: 'white',
             borderRadius: 999,
             textDecoration: 'none',
-            fontWeight: 'bold',
+            fontWeight: 900,
             fontSize: 14,
           }}
         >
@@ -975,7 +906,7 @@ export default function TablaPage() {
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 26,
+                  fontSize: 24,
                   marginBottom: 12,
                   lineHeight: 1.05,
                 }}
@@ -1001,7 +932,7 @@ export default function TablaPage() {
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 26,
+                  fontSize: 24,
                   marginBottom: 12,
                 }}
               >
@@ -1023,7 +954,7 @@ export default function TablaPage() {
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 26,
+                  fontSize: 24,
                   marginBottom: 12,
                 }}
               >
@@ -1045,7 +976,7 @@ export default function TablaPage() {
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 26,
+                  fontSize: 24,
                   marginBottom: 12,
                 }}
               >
