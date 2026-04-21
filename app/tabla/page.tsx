@@ -8,11 +8,15 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-function getTeam(teams: any[], id: number) {
+type MatchRow = any
+type TeamRow = any
+type SportRow = any
+
+function getTeam(teams: TeamRow[], id: number) {
   return teams.find((t) => t.id === id) || null
 }
 
-function getJornadaNumber(match: any) {
+function getJornadaNumber(match: MatchRow) {
   if (match.phase !== 'regular') return null
   const raw = match.match_code?.split('-')[0] || ''
   const clean = raw.replace('J', '')
@@ -27,7 +31,7 @@ function getPhaseTitle(phase: string) {
   return 'Partido'
 }
 
-function getMatchTitle(match: any) {
+function getMatchTitle(match: MatchRow) {
   if (match.phase === 'regular') {
     const jornada = getJornadaNumber(match)
     return jornada ? `Jornada ${jornada} — Fase regular` : 'Jornada — Fase regular'
@@ -35,20 +39,20 @@ function getMatchTitle(match: any) {
   return getPhaseTitle(match.phase)
 }
 
-function getStatusKey(match: any) {
+function getStatusKey(match: MatchRow) {
   if (match.status === 'submitted') return 'finished'
   if (match.started_at) return 'live'
   return 'pending'
 }
 
-function getStatusLabel(match: any) {
+function getStatusLabel(match: MatchRow) {
   const key = getStatusKey(match)
   if (key === 'finished') return 'FINALIZADO'
   if (key === 'live') return 'EN JUEGO'
   return 'PENDIENTE'
 }
 
-function getStatusTheme(match: any) {
+function getStatusTheme(match: MatchRow) {
   const key = getStatusKey(match)
 
   if (key === 'finished') {
@@ -58,8 +62,8 @@ function getStatusTheme(match: any) {
       badgeBorder: '#86efac',
       cardBg: '#f0fdf4',
       cardBorder: '#bbf7d0',
-      cardClass: 'card-finished',
       badgeClass: 'status-finished',
+      cardClass: 'card-finished',
     }
   }
 
@@ -70,8 +74,8 @@ function getStatusTheme(match: any) {
       badgeBorder: '#93c5fd',
       cardBg: '#eff6ff',
       cardBorder: '#93c5fd',
-      cardClass: 'card-live',
       badgeClass: 'status-live',
+      cardClass: 'card-live',
     }
   }
 
@@ -81,8 +85,8 @@ function getStatusTheme(match: any) {
     badgeBorder: '#fcd34d',
     cardBg: '#ffffff',
     cardBorder: '#e5e7eb',
-    cardClass: 'card-pending',
     badgeClass: 'status-pending',
+    cardClass: 'card-pending',
   }
 }
 
@@ -104,7 +108,7 @@ function parseTimeRangeToMinutes(value: string | null | undefined) {
   return hour * 60 + minutes
 }
 
-function getDisplayScores(match: any) {
+function getDisplayScores(match: MatchRow) {
   if (match.status === 'submitted') {
     return {
       a: Number(match.score_a ?? 0),
@@ -125,17 +129,16 @@ function getDisplayScores(match: any) {
   }
 }
 
-function getTeamGroup(team: any) {
+function getTeamGroup(team: TeamRow) {
   return team?.group_name || team?.group || team?.grupo || 'Sin grupo'
 }
 
-function getTimerText(match: any) {
+function getTimerText(match: MatchRow, nowMs: number) {
   if (!match.started_at) return null
   if (match.status === 'submitted') return null
 
   const started = new Date(match.started_at).getTime()
-  const now = Date.now()
-  const diffSeconds = Math.max(0, Math.floor((now - started) / 1000))
+  const diffSeconds = Math.max(0, Math.floor((nowMs - started) / 1000))
 
   const minutes = Math.floor(diffSeconds / 60)
   const seconds = diffSeconds % 60
@@ -162,89 +165,31 @@ function LiveBall() {
   )
 }
 
-function TeamMini({
-  team,
-  align = 'left',
-}: {
-  team: any
-  align?: 'left' | 'right'
-}) {
-  const isRight = align === 'right'
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: isRight ? 'flex-end' : 'flex-start',
-        gap: 6,
-        minWidth: 0,
-      }}
-    >
-      {!isRight && team?.logo_url ? (
-        <img
-          src={team.logo_url}
-          alt={team?.name || 'Equipo'}
-          style={{
-            width: 20,
-            height: 20,
-            objectFit: 'contain',
-            flexShrink: 0,
-          }}
-        />
-      ) : null}
-
-      <span
-        style={{
-          fontSize: 14,
-          fontWeight: 800,
-          lineHeight: 1.1,
-          textAlign: isRight ? 'right' : 'left',
-          wordBreak: 'break-word',
-        }}
-      >
-        {team?.name || 'Equipo'}
-      </span>
-
-      {isRight && team?.logo_url ? (
-        <img
-          src={team.logo_url}
-          alt={team?.name || 'Equipo'}
-          style={{
-            width: 20,
-            height: 20,
-            objectFit: 'contain',
-            flexShrink: 0,
-          }}
-        />
-      ) : null}
-    </div>
-  )
-}
-
 function MatchCard({
   match,
   teams,
   sportName,
+  nowMs,
 }: {
-  match: any
-  teams: any[]
+  match: MatchRow
+  teams: TeamRow[]
   sportName: string
+  nowMs: number
 }) {
   const teamA = getTeam(teams, match.team_a_id)
   const teamB = getTeam(teams, match.team_b_id)
   const score = getDisplayScores(match)
   const theme = getStatusTheme(match)
   const statusKey = getStatusKey(match)
-  const timerText = getTimerText(match)
+  const timerText = getTimerText(match, nowMs)
 
   return (
     <div
       className={theme.cardClass}
       style={{
-        borderRadius: 20,
-        padding: 14,
-        marginBottom: 12,
+        borderRadius: 22,
+        padding: 16,
+        marginBottom: 14,
         background: theme.cardBg,
         border: `1px solid ${theme.cardBorder}`,
         boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
@@ -255,7 +200,7 @@ function MatchCard({
           fontWeight: 900,
           fontSize: 16,
           lineHeight: 1.15,
-          marginBottom: 8,
+          marginBottom: 10,
         }}
       >
         {getMatchTitle(match)}
@@ -265,7 +210,7 @@ function MatchCard({
         style={{
           fontSize: 12,
           color: '#6b7280',
-          marginBottom: 3,
+          marginBottom: 4,
           letterSpacing: 0.2,
         }}
       >
@@ -278,7 +223,7 @@ function MatchCard({
           alignItems: 'center',
           gap: 8,
           flexWrap: 'wrap',
-          marginBottom: 12,
+          marginBottom: 16,
         }}
       >
         <div
@@ -311,29 +256,89 @@ function MatchCard({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)',
+          gridTemplateColumns: '1fr auto 1fr',
+          gap: 10,
           alignItems: 'center',
-          gap: 8,
-          marginBottom: 12,
+          marginBottom: 16,
         }}
       >
-        <TeamMini team={teamA} align="left" />
+        <div
+          style={{
+            textAlign: 'center',
+            minWidth: 0,
+          }}
+        >
+          {teamA?.logo_url ? (
+            <img
+              src={teamA.logo_url}
+              alt={teamA?.name || 'Equipo'}
+              style={{
+                width: 34,
+                height: 34,
+                objectFit: 'contain',
+                display: 'block',
+                margin: '0 auto 8px auto',
+              }}
+            />
+          ) : null}
+
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              lineHeight: 1.12,
+              wordBreak: 'break-word',
+            }}
+          >
+            {teamA?.name || 'Equipo'}
+          </div>
+        </div>
 
         <div
           className={statusKey === 'live' ? 'score-live' : ''}
           style={{
-            fontSize: 28,
+            fontSize: 30,
             fontWeight: 900,
             lineHeight: 1,
             textAlign: 'center',
             whiteSpace: 'nowrap',
-            minWidth: 72,
+            minWidth: 76,
           }}
         >
           {score.a} - {score.b}
         </div>
 
-        <TeamMini team={teamB} align="right" />
+        <div
+          style={{
+            textAlign: 'center',
+            minWidth: 0,
+          }}
+        >
+          {teamB?.logo_url ? (
+            <img
+              src={teamB.logo_url}
+              alt={teamB?.name || 'Equipo'}
+              style={{
+                width: 34,
+                height: 34,
+                objectFit: 'contain',
+                display: 'block',
+                margin: '0 auto 8px auto',
+              }}
+            />
+          ) : null}
+
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              lineHeight: 1.12,
+              wordBreak: 'break-word',
+            }}
+          >
+            {teamB?.name || 'Equipo'}
+          </div>
+        </div>
       </div>
 
       <div
@@ -651,10 +656,11 @@ function FullScheduleTable({
 }
 
 export default function TablaPage() {
-  const [matches, setMatches] = useState<any[]>([])
-  const [teams, setTeams] = useState<any[]>([])
-  const [sports, setSports] = useState<any[]>([])
+  const [matches, setMatches] = useState<MatchRow[]>([])
+  const [teams, setTeams] = useState<TeamRow[]>([])
+  const [sports, setSports] = useState<SportRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [nowMs, setNowMs] = useState(Date.now())
 
   useEffect(() => {
     let mounted = true
@@ -672,11 +678,13 @@ export default function TablaPage() {
     }
 
     load()
-    const interval = setInterval(load, 5000)
+    const dataInterval = setInterval(load, 5000)
+    const timerInterval = setInterval(() => setNowMs(Date.now()), 1000)
 
     return () => {
       mounted = false
-      clearInterval(interval)
+      clearInterval(dataInterval)
+      clearInterval(timerInterval)
     }
   }, [])
 
@@ -725,7 +733,7 @@ export default function TablaPage() {
   }, [matches])
 
   const matchesByJornada = useMemo(() => {
-    const grouped: Record<string, any[]> = {}
+    const grouped: Record<string, MatchRow[]> = {}
 
     regularMatches.forEach((match) => {
       const label = getMatchTitle(match)
@@ -810,7 +818,7 @@ export default function TablaPage() {
   }, [regularMatches])
 
   const regularRowsByTime = useMemo(() => {
-    const rows: Record<string, Record<number, any>> = {}
+    const rows: Record<string, Record<number, MatchRow>> = {}
 
     regularTimes.forEach((time) => {
       rows[time] = {}
@@ -899,7 +907,7 @@ export default function TablaPage() {
       <main
         style={{
           padding: 14,
-          maxWidth: 520,
+          maxWidth: 430,
           margin: '0 auto',
           fontFamily: 'Arial, sans-serif',
         }}
@@ -917,7 +925,7 @@ export default function TablaPage() {
             alt="Resultados Calendario Clasificación"
             style={{
               width: '100%',
-              height: 170,
+              height: 132,
               objectFit: 'cover',
               display: 'block',
             }}
@@ -947,8 +955,8 @@ export default function TablaPage() {
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 24,
-                  marginBottom: 12,
+                  fontSize: 22,
+                  marginBottom: 10,
                   lineHeight: 1.05,
                 }}
               >
@@ -961,6 +969,7 @@ export default function TablaPage() {
                   match={match}
                   teams={teams}
                   sportName={sportsMap[match.sport_id] || 'Deporte'}
+                  nowMs={nowMs}
                 />
               ))}
             </div>
@@ -973,8 +982,8 @@ export default function TablaPage() {
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 24,
-                  marginBottom: 12,
+                  fontSize: 22,
+                  marginBottom: 10,
                 }}
               >
                 Cuartos de final
@@ -985,6 +994,7 @@ export default function TablaPage() {
                   match={match}
                   teams={teams}
                   sportName={sportsMap[match.sport_id] || 'Deporte'}
+                  nowMs={nowMs}
                 />
               ))}
             </div>
@@ -995,8 +1005,8 @@ export default function TablaPage() {
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 24,
-                  marginBottom: 12,
+                  fontSize: 22,
+                  marginBottom: 10,
                 }}
               >
                 Semifinal
@@ -1007,6 +1017,7 @@ export default function TablaPage() {
                   match={match}
                   teams={teams}
                   sportName={sportsMap[match.sport_id] || 'Deporte'}
+                  nowMs={nowMs}
                 />
               ))}
             </div>
@@ -1017,8 +1028,8 @@ export default function TablaPage() {
               <div
                 style={{
                   fontWeight: 900,
-                  fontSize: 24,
-                  marginBottom: 12,
+                  fontSize: 22,
+                  marginBottom: 10,
                 }}
               >
                 Final
@@ -1029,6 +1040,7 @@ export default function TablaPage() {
                   match={match}
                   teams={teams}
                   sportName={sportsMap[match.sport_id] || 'Deporte'}
+                  nowMs={nowMs}
                 />
               ))}
             </div>
