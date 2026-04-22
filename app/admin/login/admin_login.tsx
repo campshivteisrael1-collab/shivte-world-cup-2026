@@ -61,22 +61,39 @@ export default function AdminLoginPage() {
           border: '1px solid #e5e7eb',
         }}
       >
-        <a
-          href="/"
-          style={{
-            display: 'inline-block',
-            marginBottom: 14,
-            padding: '8px 14px',
-            background: '#111827',
-            color: 'white',
-            borderRadius: 999,
-            textDecoration: 'none',
-            fontWeight: 'bold',
-            fontSize: 14,
-          }}
-        >
-          ← Inicio
-        </a>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+          <a
+            href="/"
+            style={{
+              display: 'inline-block',
+              padding: '8px 14px',
+              background: '#111827',
+              color: 'white',
+              borderRadius: 999,
+              textDecoration: 'none',
+              fontWeight: 'bold',
+              fontSize: 14,
+            }}
+          >
+            ← Inicio
+          </a>
+
+          <a
+            href="/tabla#clasificacion-general"
+            style={{
+              display: 'inline-block',
+              padding: '8px 14px',
+              background: '#0f766e',
+              color: 'white',
+              borderRadius: 999,
+              textDecoration: 'none',
+              fontWeight: 'bold',
+              fontSize: 14,
+            }}
+          >
+            Ver tabla general
+          </a>
+        </div>
 
         <div
           style={{

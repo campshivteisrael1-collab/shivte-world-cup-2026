@@ -370,6 +370,7 @@ function CompactStandingsCard({
 }) {
   return (
     <div
+      id="clasificacion-general"
       style={{
         background: '#fff',
         border: '1px solid #e5e7eb',
@@ -377,6 +378,7 @@ function CompactStandingsCard({
         padding: 16,
         boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
         marginBottom: 16,
+        scrollMarginTop: 20,
       }}
     >
       <div

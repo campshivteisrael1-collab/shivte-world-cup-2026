@@ -69,6 +69,26 @@ export default function AdminEquiposPage() {
     >
       <div
         style={{
+          borderRadius: 22,
+          overflow: 'hidden',
+          marginBottom: 16,
+          boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+        }}
+      >
+        <img
+          src="/header-equipos.png"
+          alt="Equipos"
+          style={{
+            width: '100%',
+            height: 120,
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      </div>
+
+      <div
+        style={{
           display: 'flex',
           gap: 10,
           flexWrap: 'wrap',
@@ -105,6 +125,22 @@ export default function AdminEquiposPage() {
           }}
         >
           ← Admin
+        </a>
+
+        <a
+          href="/tabla#clasificacion-general"
+          style={{
+            display: 'inline-block',
+            padding: '8px 14px',
+            background: '#0f766e',
+            color: 'white',
+            borderRadius: 999,
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: 14,
+          }}
+        >
+          Ver tabla general
         </a>
       </div>
 

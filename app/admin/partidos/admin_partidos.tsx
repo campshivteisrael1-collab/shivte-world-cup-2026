@@ -236,6 +236,22 @@ export default function AdminPartidosPage() {
         >
           ← Admin
         </a>
+
+        <a
+          href="/tabla#clasificacion-general"
+          style={{
+            display: 'inline-block',
+            padding: '8px 14px',
+            background: '#0f766e',
+            color: 'white',
+            borderRadius: 999,
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: 14,
+          }}
+        >
+          Ver tabla general
+        </a>
       </div>
 
       <div
@@ -375,6 +391,7 @@ export default function AdminPartidosPage() {
                 </div>
 
                 <input
+                  id={`time-${m.id}`}
                   defaultValue={m.match_time || ''}
                   placeholder="Ej. 5:30 p.m. - 5:50 p.m."
                   style={{
@@ -382,7 +399,6 @@ export default function AdminPartidosPage() {
                     borderRadius: 10,
                     border: '1px solid #ccc',
                   }}
-                  onBlur={(e) => saveMatchTime(m.id, e.target.value)}
                 />
 
                 <button

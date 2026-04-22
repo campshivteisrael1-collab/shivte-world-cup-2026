@@ -52,9 +52,7 @@ export default async function AdminHomePage() {
   const cookieStore = await cookies()
   const token = cookieStore.get('admin_session')?.value
 
-  if (!token) {
-    redirect('/admin/login')
-  }
+  if (!token) redirect('/admin/login')
 
   const { data: session } = await supabase
     .from('admin_sessions')
@@ -62,9 +60,7 @@ export default async function AdminHomePage() {
     .eq('token', token)
     .single()
 
-  if (!session) {
-    redirect('/admin/login')
-  }
+  if (!session) redirect('/admin/login')
 
   return (
     <main
@@ -87,20 +83,37 @@ export default async function AdminHomePage() {
             marginBottom: 14,
           }}
         >
-          <a
-            href="/"
-            style={{
-              padding: '8px 14px',
-              background: '#111827',
-              color: 'white',
-              borderRadius: 999,
-              textDecoration: 'none',
-              fontWeight: 'bold',
-              fontSize: 14,
-            }}
-          >
-            ← Inicio
-          </a>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <a
+              href="/"
+              style={{
+                padding: '8px 14px',
+                background: '#111827',
+                color: 'white',
+                borderRadius: 999,
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 14,
+              }}
+            >
+              ← Inicio
+            </a>
+
+            <a
+              href="/tabla#clasificacion-general"
+              style={{
+                padding: '8px 14px',
+                background: '#0f766e',
+                color: 'white',
+                borderRadius: 999,
+                textDecoration: 'none',
+                fontWeight: 'bold',
+                fontSize: 14,
+              }}
+            >
+              Ver tabla general
+            </a>
+          </div>
 
           <AdminLogoutButton />
         </div>
