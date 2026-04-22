@@ -41,10 +41,10 @@ const cards = [
     bg: 'linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)',
   },
   {
-    title: 'Configuración',
-    description: 'Control global del torneo y ajustes futuros.',
-    href: '/admin/configuracion',
-    bg: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
+    title: 'Usuarios',
+    description: 'Panel de usuarios admin para accesos futuros.',
+    href: '/admin/usuarios',
+    bg: 'linear-gradient(135deg, #dc2626 0%, #fb7185 100%)',
   },
 ]
 
@@ -52,7 +52,6 @@ export default async function AdminHomePage() {
   const cookieStore = await cookies()
   const token = cookieStore.get('admin_session')?.value
 
-  // 🔥 AQUÍ ESTÁ LA CLAVE
   if (!token) {
     redirect('/admin/login')
   }

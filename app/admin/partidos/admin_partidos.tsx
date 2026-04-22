@@ -13,10 +13,6 @@ function getTeam(teams: any[], id: number) {
   return teams.find((t) => t.id === id) || null
 }
 
-function getTeamName(teams: any[], id: number) {
-  return getTeam(teams, id)?.name || '—'
-}
-
 function getSportName(sports: any[], id: number) {
   const sport = sports.find((s) => s.id === id)
   return sport?.display_name || sport?.name || '—'
@@ -74,6 +70,7 @@ export default function AdminPartidosPage() {
   const [referees, setReferees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [resettingAll, setResettingAll] = useState(false)
+  const [savingTimeId, setSavingTimeId] = useState<string | number | null>(null)
 
   const [teamFilter, setTeamFilter] = useState('')
   const [sportFilter, setSportFilter] = useState('')
@@ -81,6 +78,8 @@ export default function AdminPartidosPage() {
   const [statusFilter, setStatusFilter] = useState('')
 
   async function loadData() {
+    setLoading(true)
+
     const { data: m } = await supabase.from('matches').select('*')
     const { data: t } = await supabase.from('teams').select('*').order('name')
     const { data: s } = await supabase.from('Sports').select('*')
@@ -128,10 +127,7 @@ export default function AdminPartidosPage() {
     )
     if (!ok1) return
 
-    const confirmation = window.prompt(
-      'Para continuar escribe: REINICIAR'
-    )
-
+    const confirmation = window.prompt('Para continuar escribe: REINICIAR')
     if (!confirmation || confirmation.trim().toUpperCase() !== 'REINICIAR') {
       alert('Acción cancelada.')
       return
@@ -161,9 +157,36 @@ export default function AdminPartidosPage() {
     }
   }
 
+  async function saveMatchTime(matchId: number | string, newTime: string) {
+    try {
+      setSavingTimeId(matchId)
+
+      const { error } = await supabase
+        .from('matches')
+        .update({ match_time: newTime || null })
+        .eq('id', matchId)
+
+      if (error) {
+        alert('No se pudo guardar el horario')
+        setSavingTimeId(null)
+        return
+      }
+
+      await loadData()
+      setSavingTimeId(null)
+    } catch {
+      alert('No se pudo guardar el horario')
+      setSavingTimeId(null)
+    }
+  }
+
   if (loading) {
     return <main style={{ padding: 20 }}>Cargando...</main>
   }
+
+  const knockoutMatches = filteredMatches.filter((m) =>
+    ['quarterfinal', 'semifinal', 'final'].includes(m.phase)
+  )
 
   return (
     <main
@@ -174,22 +197,46 @@ export default function AdminPartidosPage() {
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <a
-        href="/admin"
+      <div
         style={{
-          display: 'inline-block',
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
           marginBottom: 12,
-          padding: '8px 14px',
-          background: '#111827',
-          color: 'white',
-          borderRadius: 999,
-          textDecoration: 'none',
-          fontWeight: 'bold',
-          fontSize: 14,
         }}
       >
-        ← Admin
-      </a>
+        <a
+          href="/"
+          style={{
+            display: 'inline-block',
+            padding: '8px 14px',
+            background: '#111827',
+            color: 'white',
+            borderRadius: 999,
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: 14,
+          }}
+        >
+          ← Inicio
+        </a>
+
+        <a
+          href="/admin"
+          style={{
+            display: 'inline-block',
+            padding: '8px 14px',
+            background: '#111827',
+            color: 'white',
+            borderRadius: 999,
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: 14,
+          }}
+        >
+          ← Admin
+        </a>
+      </div>
 
       <div
         style={{
@@ -299,6 +346,66 @@ export default function AdminPartidosPage() {
           <option value="cancelled">Cancelado</option>
         </select>
       </div>
+
+      {knockoutMatches.length > 0 && (
+        <section
+          style={{
+            marginBottom: 18,
+            border: '1px solid #ddd',
+            borderRadius: 18,
+            padding: 14,
+            background: '#fff',
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Horarios · Cuartos / Semis / Final</h2>
+
+          <div style={{ display: 'grid', gap: 12 }}>
+            {knockoutMatches.map((m) => (
+              <div
+                key={`time-${m.id}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1.2fr 1fr auto',
+                  gap: 10,
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ fontWeight: 'bold' }}>
+                  {m.phase} · {getSportName(sports, m.sport_id)}
+                </div>
+
+                <input
+                  defaultValue={m.match_time || ''}
+                  placeholder="Ej. 5:30 p.m. - 5:50 p.m."
+                  style={{
+                    padding: 10,
+                    borderRadius: 10,
+                    border: '1px solid #ccc',
+                  }}
+                  onBlur={(e) => saveMatchTime(m.id, e.target.value)}
+                />
+
+                <button
+                  onClick={() => {
+                    const input = document.getElementById(`time-${m.id}`) as HTMLInputElement | null
+                    if (input) saveMatchTime(m.id, input.value)
+                  }}
+                  style={{
+                    padding: '10px 12px',
+                    background: '#111827',
+                    color: 'white',
+                    borderRadius: 10,
+                    border: 'none',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  {savingTimeId === m.id ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div style={{ display: 'grid', gap: 12 }}>
         {filteredMatches.map((m) => {

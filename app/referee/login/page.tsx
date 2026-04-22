@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function AdminLoginPage() {
+export default function RefereeLoginPage() {
   const router = useRouter()
-
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,7 +16,7 @@ export default function AdminLoginPage() {
     setError('')
 
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await fetch('/api/referee/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -31,10 +30,10 @@ export default function AdminLoginPage() {
         return
       }
 
-      router.push('/admin')
+      router.push('/referee')
       router.refresh()
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo iniciar sesión')
+    } catch {
+      setError('No se pudo iniciar sesión')
       setLoading(false)
     }
   }
@@ -88,7 +87,7 @@ export default function AdminLoginPage() {
             marginBottom: 8,
           }}
         >
-          Admin
+          Árbitro
         </div>
 
         <h1 style={{ marginTop: 0, marginBottom: 18, fontSize: 34 }}>

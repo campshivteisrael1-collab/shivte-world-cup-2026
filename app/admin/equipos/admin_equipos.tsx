@@ -15,22 +15,24 @@ export default function AdminEquiposPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
+  async function load() {
+    setLoading(true)
+
+    const { data: teamsData } = await supabase
+      .from('teams')
+      .select('*')
+      .order('name')
+
+    const { data: playersData } = await supabase
+      .from('team_players')
+      .select('*')
+
+    setTeams(teamsData || [])
+    setPlayers(playersData || [])
+    setLoading(false)
+  }
+
   useEffect(() => {
-    async function load() {
-      const { data: teamsData } = await supabase
-        .from('teams')
-        .select('*')
-        .order('name')
-
-      const { data: playersData } = await supabase
-        .from('team_players')
-        .select('*')
-
-      setTeams(teamsData || [])
-      setPlayers(playersData || [])
-      setLoading(false)
-    }
-
     load()
   }, [])
 
@@ -65,22 +67,46 @@ export default function AdminEquiposPage() {
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <a
-        href="/admin"
+      <div
         style={{
-          display: 'inline-block',
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
           marginBottom: 12,
-          padding: '8px 14px',
-          background: '#111827',
-          color: 'white',
-          borderRadius: 999,
-          textDecoration: 'none',
-          fontWeight: 'bold',
-          fontSize: 14,
         }}
       >
-        ← Admin
-      </a>
+        <a
+          href="/"
+          style={{
+            display: 'inline-block',
+            padding: '8px 14px',
+            background: '#111827',
+            color: 'white',
+            borderRadius: 999,
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: 14,
+          }}
+        >
+          ← Inicio
+        </a>
+
+        <a
+          href="/admin"
+          style={{
+            display: 'inline-block',
+            padding: '8px 14px',
+            background: '#111827',
+            color: 'white',
+            borderRadius: 999,
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: 14,
+          }}
+        >
+          ← Admin
+        </a>
+      </div>
 
       <div
         style={{
@@ -237,7 +263,7 @@ export default function AdminEquiposPage() {
                 </Link>
 
                 <Link
-                  href={`/equipos/${team.id}`}
+                  href={`/admin/equipos/${team.id}`}
                   style={{
                     display: 'inline-block',
                     padding: '10px 12px',
@@ -248,7 +274,7 @@ export default function AdminEquiposPage() {
                     fontWeight: 'bold',
                   }}
                 >
-                  Ver equipo
+                  Gestionar
                 </Link>
               </div>
             </div>
