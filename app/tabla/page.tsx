@@ -108,6 +108,20 @@ function parseTimeRangeToMinutes(value: string | null | undefined) {
   return hour * 60 + minutes
 }
 
+function getDurationSeconds(matchTime: string | null | undefined) {
+  if (!matchTime) return 0
+
+  const parts = matchTime.split('-')
+  if (parts.length < 2) return 0
+
+  const start = parseTimeRangeToMinutes(parts[0].trim())
+  const end = parseTimeRangeToMinutes(parts[1].trim())
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0
+
+  return (end - start) * 60
+}
+
 function getDisplayScores(match: MatchRow) {
   if (match.status === 'submitted') {
     return {
@@ -137,10 +151,15 @@ function getTimerText(match: MatchRow, nowMs: number) {
   if (!match.started_at) return null
   if (match.status === 'submitted') return null
 
+  const totalSeconds = getDurationSeconds(match.match_time)
+  if (!totalSeconds) return null
+
   const started = new Date(match.started_at).getTime()
-  const diffSeconds = Math.max(0, Math.floor((nowMs - started) / 1000))
-  const minutes = Math.floor(diffSeconds / 60)
-  const seconds = diffSeconds % 60
+  const elapsed = Math.max(0, Math.floor((nowMs - started) / 1000))
+  const remaining = Math.max(0, totalSeconds - elapsed)
+
+  const minutes = Math.floor(remaining / 60)
+  const seconds = remaining % 60
 
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
@@ -225,12 +244,7 @@ function MatchCard({
           marginBottom: 12,
         }}
       >
-        <div
-          style={{
-            fontSize: 12,
-            color: '#6b7280',
-          }}
-        >
+        <div style={{ fontSize: 12, color: '#6b7280' }}>
           {match.match_time || 'Sin horario'}
         </div>
 
@@ -247,7 +261,7 @@ function MatchCard({
               borderRadius: 999,
             }}
           >
-            ⏱ {timerText}
+            ⏳ {timerText}
           </div>
         ) : null}
       </div>
@@ -261,12 +275,7 @@ function MatchCard({
           marginBottom: 12,
         }}
       >
-        <div
-          style={{
-            textAlign: 'center',
-            minWidth: 0,
-          }}
-        >
+        <div style={{ textAlign: 'center', minWidth: 0 }}>
           {teamA?.logo_url ? (
             <img
               src={teamA.logo_url}
@@ -307,12 +316,7 @@ function MatchCard({
           {score.a} - {score.b}
         </div>
 
-        <div
-          style={{
-            textAlign: 'center',
-            minWidth: 0,
-          }}
-        >
+        <div style={{ textAlign: 'center', minWidth: 0 }}>
           {teamB?.logo_url ? (
             <img
               src={teamB.logo_url}
@@ -919,6 +923,8 @@ export default function TablaPage() {
             overflow: 'hidden',
             marginBottom: 18,
             boxShadow: '0 14px 30px rgba(0,0,0,0.18)',
+            background: '#111827',
+            color: 'white',
           }}
         >
           <img
@@ -930,25 +936,21 @@ export default function TablaPage() {
               objectFit: 'cover',
               display: 'block',
             }}
+            onError={(e) => {
+              const target = e.currentTarget as HTMLImageElement
+              target.style.display = 'none'
+              const parent = target.parentElement
+              if (parent) {
+                parent.innerHTML = '<div style="padding:24px;font-size:28px;font-weight:bold">Tabla</div>'
+              }
+            }}
           />
         </div>
 
-        <a
-          href="/"
-          style={{
-            display: 'inline-block',
-            marginBottom: 18,
-            padding: '10px 16px',
-            background: '#111827',
-            color: 'white',
-            borderRadius: 999,
-            textDecoration: 'none',
-            fontWeight: 900,
-            fontSize: 14,
-          }}
-        >
-          ← Inicio
-        </a>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
+          <a href="/" style={pillBlack}>← Inicio</a>
+          <a href="#clasificacion-general" style={pillGreen}>Ver tabla general</a>
+        </div>
 
         <section style={{ marginBottom: 28 }}>
           {Object.entries(matchesByJornada).map(([jornada, jornadaMatches]) => (
@@ -980,13 +982,7 @@ export default function TablaPage() {
         <section style={{ marginBottom: 28 }}>
           {quarterMatches.length > 0 && (
             <div style={{ marginBottom: 18 }}>
-              <div
-                style={{
-                  fontWeight: 900,
-                  fontSize: 20,
-                  marginBottom: 10,
-                }}
-              >
+              <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 10 }}>
                 Cuartos de final
               </div>
               {quarterMatches.map((match) => (
@@ -1003,13 +999,7 @@ export default function TablaPage() {
 
           {semiMatches.length > 0 && (
             <div style={{ marginBottom: 18 }}>
-              <div
-                style={{
-                  fontWeight: 900,
-                  fontSize: 20,
-                  marginBottom: 10,
-                }}
-              >
+              <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 10 }}>
                 Semifinal
               </div>
               {semiMatches.map((match) => (
@@ -1026,13 +1016,7 @@ export default function TablaPage() {
 
           {finalMatches.length > 0 && (
             <div style={{ marginBottom: 18 }}>
-              <div
-                style={{
-                  fontWeight: 900,
-                  fontSize: 20,
-                  marginBottom: 10,
-                }}
-              >
+              <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 10 }}>
                 Final
               </div>
               {finalMatches.map((match) => (
@@ -1068,3 +1052,25 @@ export default function TablaPage() {
     </>
   )
 }
+
+const pillBlack = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#111827',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const
+
+const pillGreen = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#0f766e',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const

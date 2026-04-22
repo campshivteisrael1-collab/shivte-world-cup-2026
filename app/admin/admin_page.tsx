@@ -1,7 +1,6 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import AdminLogoutButton from './logout-button'
 import Link from 'next/link'
 
 const supabase = createClient(
@@ -10,12 +9,6 @@ const supabase = createClient(
 )
 
 const cards = [
-  {
-    title: 'Resumen',
-    description: 'Vista general del torneo y accesos rápidos.',
-    href: '/admin',
-    bg: 'linear-gradient(135deg, #111827 0%, #374151 100%)',
-  },
   {
     title: 'Equipos',
     description: 'Crear, editar y borrar equipos, DT y jugadores.',
@@ -30,19 +23,19 @@ const cards = [
   },
   {
     title: 'Árbitros',
-    description: 'Crear árbitros y administrar usuarios y contraseñas.',
+    description: 'Entradas y control de árbitros.',
     href: '/admin/arbitros',
     bg: 'linear-gradient(135deg, #7c3aed 0%, #c084fc 100%)',
   },
   {
     title: 'Deportes',
-    description: 'Crear, editar y borrar deportes, reglas y ubicaciones.',
+    description: 'Configurar deportes y módulos.',
     href: '/admin/deportes',
     bg: 'linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)',
   },
   {
     title: 'Usuarios',
-    description: 'Panel de usuarios admin para accesos futuros.',
+    description: 'Panel base de usuarios admin.',
     href: '/admin/usuarios',
     bg: 'linear-gradient(135deg, #dc2626 0%, #fb7185 100%)',
   },
@@ -76,46 +69,13 @@ export default async function AdminHomePage() {
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
-            gap: 12,
-            alignItems: 'center',
+            gap: 10,
             flexWrap: 'wrap',
-            marginBottom: 14,
+            marginBottom: 16,
           }}
         >
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <a
-              href="/"
-              style={{
-                padding: '8px 14px',
-                background: '#111827',
-                color: 'white',
-                borderRadius: 999,
-                textDecoration: 'none',
-                fontWeight: 'bold',
-                fontSize: 14,
-              }}
-            >
-              ← Inicio
-            </a>
-
-            <a
-              href="/tabla#clasificacion-general"
-              style={{
-                padding: '8px 14px',
-                background: '#0f766e',
-                color: 'white',
-                borderRadius: 999,
-                textDecoration: 'none',
-                fontWeight: 'bold',
-                fontSize: 14,
-              }}
-            >
-              Ver tabla general
-            </a>
-          </div>
-
-          <AdminLogoutButton />
+          <a href="/" style={pillBlack}>← Inicio</a>
+          <a href="/tabla#clasificacion-general" style={pillGreen}>Ver tabla general</a>
         </div>
 
         <section
@@ -127,9 +87,7 @@ export default async function AdminHomePage() {
             marginBottom: 22,
           }}
         >
-          <h1 style={{ margin: 0, fontSize: 36 }}>
-            Panel de control
-          </h1>
+          <h1 style={{ margin: 0, fontSize: 36 }}>Panel de control</h1>
         </section>
 
         <section
@@ -165,9 +123,7 @@ export default async function AdminHomePage() {
                   </div>
                 </div>
 
-                <div style={{ fontWeight: 'bold' }}>
-                  Entrar →
-                </div>
+                <div style={{ fontWeight: 'bold' }}>Entrar →</div>
               </div>
             </Link>
           ))}
@@ -176,3 +132,25 @@ export default async function AdminHomePage() {
     </main>
   )
 }
+
+const pillBlack = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#111827',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const
+
+const pillGreen = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#0f766e',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const

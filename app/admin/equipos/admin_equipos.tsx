@@ -14,6 +14,7 @@ export default function AdminEquiposPage() {
   const [players, setPlayers] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [headerOk, setHeaderOk] = useState(true)
 
   async function load() {
     setLoading(true)
@@ -73,18 +74,27 @@ export default function AdminEquiposPage() {
           overflow: 'hidden',
           marginBottom: 16,
           boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+          background: '#111827',
+          color: 'white',
         }}
       >
-        <img
-          src="/header-equipos.png"
-          alt="Equipos"
-          style={{
-            width: '100%',
-            height: 120,
-            objectFit: 'cover',
-            display: 'block',
-          }}
-        />
+        {headerOk ? (
+          <img
+            src="/header-equipos.png"
+            alt="Equipos"
+            style={{
+              width: '100%',
+              height: 120,
+              objectFit: 'cover',
+              display: 'block',
+            }}
+            onError={() => setHeaderOk(false)}
+          />
+        ) : (
+          <div style={{ padding: 24, fontSize: 28, fontWeight: 'bold' }}>
+            Equipos
+          </div>
+        )}
       </div>
 
       <div
@@ -95,53 +105,9 @@ export default function AdminEquiposPage() {
           marginBottom: 12,
         }}
       >
-        <a
-          href="/"
-          style={{
-            display: 'inline-block',
-            padding: '8px 14px',
-            background: '#111827',
-            color: 'white',
-            borderRadius: 999,
-            textDecoration: 'none',
-            fontWeight: 'bold',
-            fontSize: 14,
-          }}
-        >
-          ← Inicio
-        </a>
-
-        <a
-          href="/admin"
-          style={{
-            display: 'inline-block',
-            padding: '8px 14px',
-            background: '#111827',
-            color: 'white',
-            borderRadius: 999,
-            textDecoration: 'none',
-            fontWeight: 'bold',
-            fontSize: 14,
-          }}
-        >
-          ← Admin
-        </a>
-
-        <a
-          href="/tabla#clasificacion-general"
-          style={{
-            display: 'inline-block',
-            padding: '8px 14px',
-            background: '#0f766e',
-            color: 'white',
-            borderRadius: 999,
-            textDecoration: 'none',
-            fontWeight: 'bold',
-            fontSize: 14,
-          }}
-        >
-          Ver tabla general
-        </a>
+        <a href="/" style={pillBlack}>← Inicio</a>
+        <a href="/admin" style={pillBlack}>← Admin</a>
+        <a href="/tabla#clasificacion-general" style={pillGreen}>Ver tabla general</a>
       </div>
 
       <div
@@ -320,3 +286,25 @@ export default function AdminEquiposPage() {
     </main>
   )
 }
+
+const pillBlack = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#111827',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const
+
+const pillGreen = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#0f766e',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const

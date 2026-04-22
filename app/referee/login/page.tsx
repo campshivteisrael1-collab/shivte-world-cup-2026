@@ -1,185 +1,94 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 
-export default function RefereeLoginPage() {
-  const router = useRouter()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      const res = await fetch('/api/referee/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      })
-
-      const result = await res.json()
-
-      if (!res.ok) {
-        setError(result.error || 'No se pudo iniciar sesión')
-        setLoading(false)
-        return
-      }
-
-      router.push('/referee')
-      router.refresh()
-    } catch {
-      setError('No se pudo iniciar sesión')
-      setLoading(false)
-    }
-  }
+export default function RefereeHomePage() {
+  const [headerOk, setHeaderOk] = useState(true)
 
   return (
     <main
       style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
         padding: 16,
+        maxWidth: 920,
+        margin: '0 auto',
         fontFamily: 'Arial, sans-serif',
-        background:
-          'linear-gradient(180deg, #0b1220 0%, #0f2f6d 35%, #f3f4f6 75%, #ffffff 100%)',
       }}
     >
       <div
         style={{
-          width: '100%',
-          maxWidth: 460,
-          background: '#fff',
           borderRadius: 22,
-          padding: 22,
-          boxShadow: '0 20px 50px rgba(0,0,0,0.18)',
-          border: '1px solid #e5e7eb',
+          overflow: 'hidden',
+          marginBottom: 16,
+          boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+          background: '#111827',
+          color: 'white',
         }}
       >
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-          <a
-            href="/"
-            style={{
-              display: 'inline-block',
-              padding: '8px 14px',
-              background: '#111827',
-              color: 'white',
-              borderRadius: 999,
-              textDecoration: 'none',
-              fontWeight: 'bold',
-              fontSize: 14,
-            }}
-          >
-            ← Inicio
-          </a>
-
-          <a
-            href="/tabla#clasificacion-general"
-            style={{
-              display: 'inline-block',
-              padding: '8px 14px',
-              background: '#0f766e',
-              color: 'white',
-              borderRadius: 999,
-              textDecoration: 'none',
-              fontWeight: 'bold',
-              fontSize: 14,
-            }}
-          >
-            Ver tabla general
-          </a>
-        </div>
-
-        <div
-          style={{
-            fontSize: 13,
-            letterSpacing: 1.4,
-            textTransform: 'uppercase',
-            color: '#6b7280',
-            marginBottom: 8,
-          }}
-        >
-          Árbitro
-        </div>
-
-        <h1 style={{ marginTop: 0, marginBottom: 18, fontSize: 34 }}>
-          Iniciar sesión
-        </h1>
-
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 14 }}>
-            <label
-              style={{
-                display: 'block',
-                fontWeight: 'bold',
-                marginBottom: 6,
-              }}
-            >
-              Usuario
-            </label>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              style={input}
-            />
-          </div>
-
-          <div style={{ marginBottom: 14 }}>
-            <label
-              style={{
-                display: 'block',
-                fontWeight: 'bold',
-                marginBottom: 6,
-              }}
-            >
-              Contraseña
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={input}
-            />
-          </div>
-
-          {error && (
-            <p style={{ color: '#dc2626', fontWeight: 'bold' }}>{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
+        {headerOk ? (
+          <img
+            src="/header-referee.png"
+            alt="Referee"
             style={{
               width: '100%',
-              padding: 14,
-              background: '#111827',
-              color: 'white',
-              border: 'none',
-              borderRadius: 12,
-              fontWeight: 'bold',
-              fontSize: 16,
-              cursor: 'pointer',
+              height: 120,
+              objectFit: 'cover',
+              display: 'block',
             }}
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
+            onError={() => setHeaderOk(false)}
+          />
+        ) : (
+          <div style={{ padding: 24, fontSize: 28, fontWeight: 'bold' }}>
+            Referee
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 16,
+        }}
+      >
+        <a href="/" style={pillBlack}>← Inicio</a>
+        <a href="/tabla#clasificacion-general" style={pillGreen}>Ver tabla general</a>
+      </div>
+
+      <h1 style={{ marginTop: 0 }}>Panel de árbitro</h1>
+
+      <div
+        style={{
+          border: '1px solid #ddd',
+          borderRadius: 18,
+          padding: 18,
+          background: '#fff',
+        }}
+      >
+        Aquí va tu panel de árbitro.
       </div>
     </main>
   )
 }
 
-const input = {
-  width: '100%',
-  padding: 12,
-  borderRadius: 12,
-  border: '1px solid #d1d5db',
-  fontSize: 15,
-}
+const pillBlack = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#111827',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const
+
+const pillGreen = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#0f766e',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const
