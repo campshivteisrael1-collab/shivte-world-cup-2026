@@ -1,7 +1,7 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -9,63 +9,80 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export default function AdminEditarEquipoPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default function AdminEditarEquipoPage() {
+  const params = useParams()
   const router = useRouter()
-  const resolvedParams = use(params)
-  const teamId = Number(resolvedParams.id)
+  const id = params?.id as string
+
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const [teamName, setTeamName] = useState('')
   const [coachName, setCoachName] = useState('')
   const [playersText, setPlayersText] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [logoUrl, setLogoUrl] = useState('')
+
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   useEffect(() => {
     async function load() {
-      const { data: team } = await supabase
+      setLoading(true)
+      setError('')
+      setSuccess('')
+
+      const { data: team, error: teamError } = await supabase
         .from('teams')
         .select('*')
-        .eq('id', teamId)
+        .eq('id', id)
         .single()
 
       const { data: players } = await supabase
         .from('team_players')
         .select('*')
-        .eq('team_id', teamId)
+        .eq('team_id', id)
         .order('player_name')
 
-      setTeamName(team?.name || '')
-      setCoachName(team?.coach_name || '')
-      setPlayersText(
-        (players || []).map((p: any) => p.player_name).join('\n')
-      )
+      if (teamError || !team) {
+        setError('No se pudo cargar el equipo')
+        setLoading(false)
+        return
+      }
+
+      setTeamName(team.name || '')
+      setCoachName(team.coach_name || '')
+      setLogoUrl(team.logo_url || '')
+      setPlayersText((players || []).map((p) => p.player_name).join('\n'))
       setLoading(false)
     }
 
-    load()
-  }, [teamId])
+    if (id) load()
+  }, [id])
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-
-    const playerNames = playersText
+  const playerNames = useMemo(() => {
+    return playersText
       .split('\n')
-      .map((x) => x.trim())
+      .map((p) => p.trim())
       .filter(Boolean)
+  }, [playersText])
 
+  async function handleSave() {
     try {
+      setSaving(true)
+      setError('')
+      setSuccess('')
+
       const res = await fetch('/api/admin/team-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId, teamName, coachName, playerNames }),
+        body: JSON.stringify({
+          teamId: id,
+          name: teamName,
+          coachName,
+          logoUrl,
+          playerNames,
+        }),
       })
 
       const result = await res.json()
@@ -76,28 +93,30 @@ export default function AdminEditarEquipoPage({
         return
       }
 
-      router.push('/admin/equipos')
+      setSuccess('Equipo actualizado correctamente')
+      setSaving(false)
       router.refresh()
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo guardar')
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo guardar')
       setSaving(false)
     }
   }
 
   async function handleDelete() {
     const ok = window.confirm(
-      '¿Seguro que quieres borrar este equipo? Esto quitará también sus jugadores.'
+      '¿Seguro que quieres borrar este equipo? Esta acción no se puede deshacer.'
     )
     if (!ok) return
 
-    setDeleting(true)
-    setError('')
-
     try {
+      setDeleting(true)
+      setError('')
+      setSuccess('')
+
       const res = await fetch('/api/admin/team-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId }),
+        body: JSON.stringify({ teamId: id }),
       })
 
       const result = await res.json()
@@ -108,10 +127,11 @@ export default function AdminEditarEquipoPage({
         return
       }
 
+      setDeleting(false)
       router.push('/admin/equipos')
       router.refresh()
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo borrar')
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo borrar')
       setDeleting(false)
     }
   }
@@ -129,134 +149,172 @@ export default function AdminEditarEquipoPage({
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <a
-        href="/admin/equipos"
+      <div
         style={{
-          display: 'inline-block',
-          marginBottom: 12,
-          padding: '8px 14px',
-          background: '#111827',
-          color: 'white',
-          borderRadius: 999,
-          textDecoration: 'none',
-          fontWeight: 'bold',
-          fontSize: 14,
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 16,
         }}
       >
-        ← Admin Equipos
-      </a>
+        <a href="/" style={pillBlack}>← Inicio</a>
+        <a href="/admin" style={pillBlack}>← Admin</a>
+        <a href="/admin/equipos" style={pillBlack}>← Equipos</a>
+        <a href="/tabla#clasificacion-general" style={pillGreen}>Ver tabla general</a>
+      </div>
 
-      <h1 style={{ marginTop: 0, marginBottom: 18 }}>Editar equipo</h1>
+      <h1 style={{ marginTop: 0, marginBottom: 18 }}>
+        Editar equipo
+      </h1>
 
-      <form
-        onSubmit={handleSave}
+      <div
         style={{
           border: '1px solid #ddd',
           borderRadius: 18,
+          padding: 16,
           background: '#fff',
-          padding: 18,
           boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
         }}
       >
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Nombre del equipo
-          </label>
+          <label style={label}>Nombre del equipo</label>
           <input
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
-            required
-            style={{
-              width: '100%',
-              padding: 12,
-              borderRadius: 12,
-              border: '1px solid #ccc',
-              fontSize: 15,
-            }}
+            style={input}
+            placeholder="Nombre del equipo"
           />
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Director técnico
-          </label>
+          <label style={label}>Director técnico</label>
           <input
             value={coachName}
             onChange={(e) => setCoachName(e.target.value)}
-            style={{
-              width: '100%',
-              padding: 12,
-              borderRadius: 12,
-              border: '1px solid #ccc',
-              fontSize: 15,
-            }}
+            style={input}
+            placeholder="Nombre del DT"
           />
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Jugadores
-          </label>
-          <textarea
-            value={playersText}
-            onChange={(e) => setPlayersText(e.target.value)}
-            rows={10}
-            placeholder={'Un jugador por línea'}
-            style={{
-              width: '100%',
-              padding: 12,
-              borderRadius: 12,
-              border: '1px solid #ccc',
-              fontSize: 15,
-              resize: 'vertical',
-              fontFamily: 'Arial, sans-serif',
-            }}
+          <label style={label}>Logo URL</label>
+          <input
+            value={logoUrl}
+            onChange={(e) => setLogoUrl(e.target.value)}
+            style={input}
+            placeholder="/team-logos/alemania.png"
           />
         </div>
 
-        {error && (
-          <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>
-        )}
+        <div style={{ marginBottom: 14 }}>
+          <label style={label}>Jugadores</label>
+          <textarea
+            value={playersText}
+            onChange={(e) => setPlayersText(e.target.value)}
+            style={{ ...input, minHeight: 180, resize: 'vertical' }}
+            placeholder={'Uno por línea\nJacobo\nYosef\nDaniel'}
+          />
+          <div style={{ marginTop: 8, fontSize: 13, color: '#666' }}>
+            Total de jugadores detectados: <strong>{playerNames.length}</strong>
+          </div>
+        </div>
 
-        <div style={{ display: 'grid', gap: 10 }}>
+        {error ? (
+          <div
+            style={{
+              marginBottom: 14,
+              color: '#b91c1c',
+              fontWeight: 'bold',
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
+        {success ? (
+          <div
+            style={{
+              marginBottom: 14,
+              color: '#166534',
+              fontWeight: 'bold',
+            }}
+          >
+            {success}
+          </div>
+        ) : null}
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
-            type="submit"
+            onClick={handleSave}
             disabled={saving}
             style={{
-              width: '100%',
-              padding: 14,
+              padding: '10px 14px',
               background: '#059669',
               color: 'white',
               border: 'none',
               borderRadius: 12,
               fontWeight: 'bold',
-              fontSize: 16,
               cursor: 'pointer',
+              opacity: saving ? 0.7 : 1,
             }}
           >
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
 
           <button
-            type="button"
             onClick={handleDelete}
             disabled={deleting}
             style={{
-              width: '100%',
-              padding: 14,
+              padding: '10px 14px',
               background: '#dc2626',
               color: 'white',
               border: 'none',
               borderRadius: 12,
               fontWeight: 'bold',
-              fontSize: 16,
               cursor: 'pointer',
+              opacity: deleting ? 0.7 : 1,
             }}
           >
             {deleting ? 'Borrando...' : 'Borrar equipo'}
           </button>
         </div>
-      </form>
+      </div>
     </main>
   )
 }
+
+const label = {
+  display: 'block',
+  fontWeight: 'bold',
+  marginBottom: 6,
+} as const
+
+const input = {
+  width: '100%',
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #ccc',
+  fontSize: 15,
+} as const
+
+const pillBlack = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#111827',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const
+
+const pillGreen = {
+  display: 'inline-block',
+  padding: '8px 14px',
+  background: '#0f766e',
+  color: 'white',
+  borderRadius: 999,
+  textDecoration: 'none',
+  fontWeight: 'bold',
+  fontSize: 14,
+} as const

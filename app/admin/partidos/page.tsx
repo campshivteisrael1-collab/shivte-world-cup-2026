@@ -10,17 +10,17 @@ const supabase = createClient(
 )
 
 function getTeam(teams: any[], id: number) {
-  return teams.find((t) => t.id === id) || null
+  return teams.find((t) => String(t.id) === String(id)) || null
 }
 
 function getSportName(sports: any[], id: number) {
-  const sport = sports.find((s) => s.id === id)
+  const sport = sports.find((s) => String(s.id) === String(id))
   return sport?.display_name || sport?.name || '—'
 }
 
 function getRefereeName(referees: any[], id: string | null) {
   if (!id) return '—'
-  return referees.find((r) => r.profile_id === id)?.name || '—'
+  return referees.find((r) => String(r.profile_id) === String(id))?.name || '—'
 }
 
 function getStatusLabel(match: any) {
@@ -41,6 +41,14 @@ function getStatusStyle(match: any) {
     return { background: '#dbeafe', color: '#1d4ed8' }
   }
   return { background: '#fef3c7', color: '#92400e' }
+}
+
+function getPhaseLabel(phase: string) {
+  if (phase === 'regular') return 'regular'
+  if (phase === 'quarterfinal') return 'quarterfinal'
+  if (phase === 'semifinal') return 'semifinal'
+  if (phase === 'final') return 'final'
+  return phase || '—'
 }
 
 function TeamMini({ team }: { team: any }) {
@@ -70,7 +78,6 @@ export default function AdminPartidosPage() {
   const [referees, setReferees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [resettingAll, setResettingAll] = useState(false)
-  const [savingTimeId, setSavingTimeId] = useState<string | number | null>(null)
 
   const [teamFilter, setTeamFilter] = useState('')
   const [sportFilter, setSportFilter] = useState('')
@@ -97,7 +104,7 @@ export default function AdminPartidosPage() {
   }, [])
 
   const filteredMatches = useMemo(() => {
-    return matches.filter((m) => {
+    const filtered = matches.filter((m) => {
       const teamMatch =
         !teamFilter ||
         String(m.team_a_id) === teamFilter ||
@@ -110,14 +117,31 @@ export default function AdminPartidosPage() {
         m.status === 'cancelled'
           ? 'cancelled'
           : m.status === 'submitted'
-          ? 'submitted'
-          : m.started_at
-          ? 'live'
-          : 'pending'
+            ? 'submitted'
+            : m.started_at
+              ? 'live'
+              : 'pending'
 
       const statusMatch = !statusFilter || computedStatus === statusFilter
 
       return teamMatch && sportMatch && phaseMatch && statusMatch
+    })
+
+    const phaseOrder: Record<string, number> = {
+      regular: 1,
+      quarterfinal: 2,
+      semifinal: 3,
+      final: 4,
+    }
+
+    return filtered.sort((a, b) => {
+      const pA = phaseOrder[a.phase] ?? 99
+      const pB = phaseOrder[b.phase] ?? 99
+      if (pA !== pB) return pA - pB
+
+      const cA = String(a.match_code || '')
+      const cB = String(b.match_code || '')
+      return cA.localeCompare(cB, undefined, { numeric: true, sensitivity: 'base' })
     })
   }, [matches, teamFilter, sportFilter, phaseFilter, statusFilter])
 
@@ -140,7 +164,16 @@ export default function AdminPartidosPage() {
         method: 'POST',
       })
 
-      const result = await res.json()
+      const text = await res.text()
+      let result: any = {}
+
+      try {
+        result = text ? JSON.parse(text) : {}
+      } catch {
+        alert('La ruta /api/admin/matches-reset-all no devolvió JSON. Revisa que exista app/api/admin/matches-reset-all/route.ts')
+        setResettingAll(false)
+        return
+      }
 
       if (!res.ok) {
         alert(result.error || 'No se pudo reiniciar el torneo')
@@ -148,7 +181,7 @@ export default function AdminPartidosPage() {
         return
       }
 
-      alert('El torneo fue reiniciado correctamente.')
+      alert(result.message || 'El torneo fue reiniciado correctamente.')
       await loadData()
       setResettingAll(false)
     } catch (err: any) {
@@ -157,36 +190,9 @@ export default function AdminPartidosPage() {
     }
   }
 
-  async function saveMatchTime(matchId: number | string, newTime: string) {
-    try {
-      setSavingTimeId(matchId)
-
-      const { error } = await supabase
-        .from('matches')
-        .update({ match_time: newTime || null })
-        .eq('id', matchId)
-
-      if (error) {
-        alert('No se pudo guardar el horario')
-        setSavingTimeId(null)
-        return
-      }
-
-      await loadData()
-      setSavingTimeId(null)
-    } catch {
-      alert('No se pudo guardar el horario')
-      setSavingTimeId(null)
-    }
-  }
-
   if (loading) {
     return <main style={{ padding: 20 }}>Cargando...</main>
   }
-
-  const knockoutMatches = filteredMatches.filter((m) =>
-    ['quarterfinal', 'semifinal', 'final'].includes(m.phase)
-  )
 
   return (
     <main
@@ -319,7 +325,7 @@ export default function AdminPartidosPage() {
         >
           <option value="">Todos los equipos</option>
           {teams.map((t) => (
-            <option key={t.id} value={t.id}>
+            <option key={t.id} value={String(t.id)}>
               {t.name}
             </option>
           ))}
@@ -332,7 +338,7 @@ export default function AdminPartidosPage() {
         >
           <option value="">Todos los deportes</option>
           {sports.map((s) => (
-            <option key={s.id} value={s.id}>
+            <option key={s.id} value={String(s.id)}>
               {s.display_name || s.name}
             </option>
           ))}
@@ -362,66 +368,6 @@ export default function AdminPartidosPage() {
           <option value="cancelled">Cancelado</option>
         </select>
       </div>
-
-      {knockoutMatches.length > 0 && (
-        <section
-          style={{
-            marginBottom: 18,
-            border: '1px solid #ddd',
-            borderRadius: 18,
-            padding: 14,
-            background: '#fff',
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>Horarios · Cuartos / Semis / Final</h2>
-
-          <div style={{ display: 'grid', gap: 12 }}>
-            {knockoutMatches.map((m) => (
-              <div
-                key={`time-${m.id}`}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1.2fr 1fr auto',
-                  gap: 10,
-                  alignItems: 'center',
-                }}
-              >
-                <div style={{ fontWeight: 'bold' }}>
-                  {m.phase} · {getSportName(sports, m.sport_id)}
-                </div>
-
-                <input
-                  id={`time-${m.id}`}
-                  defaultValue={m.match_time || ''}
-                  placeholder="Ej. 5:30 p.m. - 5:50 p.m."
-                  style={{
-                    padding: 10,
-                    borderRadius: 10,
-                    border: '1px solid #ccc',
-                  }}
-                />
-
-                <button
-                  onClick={() => {
-                    const input = document.getElementById(`time-${m.id}`) as HTMLInputElement | null
-                    if (input) saveMatchTime(m.id, input.value)
-                  }}
-                  style={{
-                    padding: '10px 12px',
-                    background: '#111827',
-                    color: 'white',
-                    borderRadius: 10,
-                    border: 'none',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {savingTimeId === m.id ? 'Guardando...' : 'Guardar'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       <div style={{ display: 'grid', gap: 12 }}>
         {filteredMatches.map((m) => {
@@ -468,11 +414,13 @@ export default function AdminPartidosPage() {
                   </div>
 
                   <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>
-                    {m.phase} · {getSportName(sports, m.sport_id)} · {m.match_time || 'Sin horario'}
+                    {getPhaseLabel(m.phase)} · {getSportName(sports, m.sport_id)} · {m.match_time || 'Sin horario'}
                   </div>
+
                   <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
                     Árbitro: {getRefereeName(referees, m.referee_id)}
                   </div>
+
                   <div style={{ marginTop: 8, fontWeight: 'bold', fontSize: 20 }}>
                     {m.live_score_a ?? 0} - {m.live_score_b ?? 0}
                     {m.status === 'submitted' && (

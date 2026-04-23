@@ -8,7 +8,8 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { teamId, teamName, coachName, playerNames } = await req.json()
+    const body = await req.json()
+    const { teamId, name, coachName, logoUrl, playerNames } = body
 
     if (!teamId) {
       return NextResponse.json(
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
       )
     }
 
-    if (!teamName || !String(teamName).trim()) {
+    if (!name || !String(name).trim()) {
       return NextResponse.json(
         { error: 'Nombre del equipo requerido' },
         { status: 400 }
@@ -27,8 +28,9 @@ export async function POST(req: Request) {
     const { error: updateError } = await supabase
       .from('teams')
       .update({
-        name: String(teamName).trim(),
+        name: String(name).trim(),
         coach_name: coachName ? String(coachName).trim() : null,
+        logo_url: logoUrl ? String(logoUrl).trim() : null,
       })
       .eq('id', teamId)
 
@@ -51,12 +53,9 @@ export async function POST(req: Request) {
       )
     }
 
-    const cleanPlayers =
-      Array.isArray(playerNames)
-        ? playerNames
-            .map((x) => String(x).trim())
-            .filter(Boolean)
-        : []
+    const cleanPlayers = Array.isArray(playerNames)
+      ? playerNames.map((x) => String(x).trim()).filter(Boolean)
+      : []
 
     if (cleanPlayers.length > 0) {
       const rows = cleanPlayers.map((playerName) => ({

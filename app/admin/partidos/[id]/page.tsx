@@ -1,7 +1,7 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -9,21 +9,19 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export default function EditMatchPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default function EditMatchPage() {
   const router = useRouter()
-  const resolvedParams = use(params)
-  const matchId = resolvedParams.id
+  const params = useParams()
+  const matchId = params?.id as string
 
   const [match, setMatch] = useState<any>(null)
   const [teams, setTeams] = useState<any[]>([])
   const [sports, setSports] = useState<any[]>([])
   const [referees, setReferees] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
+  const [working, setWorking] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -43,115 +41,86 @@ export default function EditMatchPage({
       setReferees(r || [])
     }
 
-    load()
+    if (matchId) load()
   }, [matchId])
 
-  async function save() {
-    setSaving(true)
-    setError('')
+  async function postAction(action: 'save' | 'reset' | 'clearFinal' | 'cancel') {
+    try {
+      setError('')
+      setSuccess('')
 
-    const payload = {
-      ...match,
-      team_a_id: Number(match.team_a_id),
-      team_b_id: Number(match.team_b_id),
-      sport_id: Number(match.sport_id),
-      live_score_a: Number(match.live_score_a ?? 0),
-      live_score_b: Number(match.live_score_b ?? 0),
-      score_a:
-        match.score_a === '' || match.score_a === null
-          ? null
-          : Number(match.score_a),
-      score_b:
-        match.score_b === '' || match.score_b === null
-          ? null
-          : Number(match.score_b),
-      referee_id: match.referee_id || null,
-      referee_note: match.referee_note || null,
-      started_at: match.started_at || null,
-      ended_at: match.ended_at || null,
-    }
+      if (action === 'save') {
+        setSaving(true)
+      } else {
+        setWorking(true)
+      }
 
-    const { error } = await supabase
-      .from('matches')
-      .update(payload)
-      .eq('id', match.id)
+      const res = await fetch('/api/admin/match-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          matchId: match.id,
+          payload: match,
+        }),
+      })
 
-    if (error) {
-      setError(error.message)
+      const result = await res.json()
+
+      if (!res.ok) {
+        setError(result.error || 'No se pudo guardar')
+        setSaving(false)
+        setWorking(false)
+        return false
+      }
+
+      setSuccess(result.message || 'Operación realizada correctamente')
       setSaving(false)
-      return
+      setWorking(false)
+      return true
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo completar la acción')
+      setSaving(false)
+      setWorking(false)
+      return false
     }
+  }
 
-    setSaving(false)
+  async function save() {
+    const ok = await postAction('save')
+    if (!ok) return
     alert('Guardado')
     router.refresh()
   }
 
   async function resetMatch() {
-    const ok = window.confirm('¿Seguro que quieres reiniciar este partido?')
+    const okConfirm = window.confirm('¿Seguro que quieres reiniciar este partido?')
+    if (!okConfirm) return
+
+    const ok = await postAction('reset')
     if (!ok) return
-
-    const { error } = await supabase
-      .from('matches')
-      .update({
-        live_score_a: 0,
-        live_score_b: 0,
-        score_a: null,
-        score_b: null,
-        status: null,
-        started_at: null,
-        ended_at: null,
-        referee_note: null,
-      })
-      .eq('id', match.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
 
     alert('Partido reiniciado')
     location.reload()
   }
 
   async function clearFinalResult() {
-    const ok = window.confirm('¿Seguro que quieres borrar el resultado final?')
+    const okConfirm = window.confirm('¿Seguro que quieres borrar el resultado final?')
+    if (!okConfirm) return
+
+    const ok = await postAction('clearFinal')
     if (!ok) return
-
-    const { error } = await supabase
-      .from('matches')
-      .update({
-        score_a: null,
-        score_b: null,
-        status: null,
-        ended_at: null,
-      })
-      .eq('id', match.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
 
     alert('Resultado final borrado')
     location.reload()
   }
 
   async function cancelMatch() {
-    const ok = window.confirm('¿Seguro que quieres cancelar este partido?')
+    const okConfirm = window.confirm('¿Seguro que quieres cancelar este partido?')
+    if (!okConfirm) return
+
+    const ok = await postAction('cancel')
     if (!ok) return
-
-    const { error } = await supabase
-      .from('matches')
-      .update({
-        status: 'cancelled',
-      })
-      .eq('id', match.id)
-
-    if (error) {
-      setError(error.message)
-      return
-    }
 
     alert('Partido cancelado')
     location.reload()
@@ -278,7 +247,9 @@ export default function EditMatchPage({
           <strong>Árbitro</strong>
           <select
             value={match.referee_id || ''}
-            onChange={(e) => setMatch({ ...match, referee_id: e.target.value || null })}
+            onChange={(e) =>
+              setMatch({ ...match, referee_id: e.target.value || null })
+            }
             style={input}
           >
             <option value="">Sin árbitro</option>
@@ -326,9 +297,7 @@ export default function EditMatchPage({
             <input
               type="number"
               value={match.score_a ?? ''}
-              onChange={(e) =>
-                setMatch({ ...match, score_a: e.target.value })
-              }
+              onChange={(e) => setMatch({ ...match, score_a: e.target.value })}
               style={input}
             />
           </label>
@@ -338,9 +307,7 @@ export default function EditMatchPage({
             <input
               type="number"
               value={match.score_b ?? ''}
-              onChange={(e) =>
-                setMatch({ ...match, score_b: e.target.value })
-              }
+              onChange={(e) => setMatch({ ...match, score_b: e.target.value })}
               style={input}
             />
           </label>
@@ -396,7 +363,13 @@ export default function EditMatchPage({
         </label>
 
         {error && (
-          <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>
+          <p style={{ color: 'red', fontWeight: 'bold', margin: 0 }}>{error}</p>
+        )}
+
+        {success && (
+          <p style={{ color: '#166534', fontWeight: 'bold', margin: 0 }}>
+            {success}
+          </p>
         )}
 
         <div style={{ display: 'grid', gap: 10 }}>
@@ -404,16 +377,16 @@ export default function EditMatchPage({
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
 
-          <button onClick={resetMatch} style={btnDark}>
-            Reiniciar partido completo
+          <button onClick={resetMatch} disabled={working} style={btnDark}>
+            {working ? 'Procesando...' : 'Reiniciar partido completo'}
           </button>
 
-          <button onClick={clearFinalResult} style={btnOrange}>
-            Borrar resultado final
+          <button onClick={clearFinalResult} disabled={working} style={btnOrange}>
+            {working ? 'Procesando...' : 'Borrar resultado final'}
           </button>
 
-          <button onClick={cancelMatch} style={btnRed}>
-            Cancelar partido
+          <button onClick={cancelMatch} disabled={working} style={btnRed}>
+            {working ? 'Procesando...' : 'Cancelar partido'}
           </button>
         </div>
       </div>
@@ -428,7 +401,7 @@ const input = {
   borderRadius: 12,
   border: '1px solid #ccc',
   fontSize: 15,
-}
+} as const
 
 const btnGreen = {
   width: '100%',
@@ -440,7 +413,7 @@ const btnGreen = {
   fontWeight: 'bold',
   fontSize: 16,
   cursor: 'pointer',
-}
+} as const
 
 const btnDark = {
   width: '100%',
@@ -452,7 +425,7 @@ const btnDark = {
   fontWeight: 'bold',
   fontSize: 16,
   cursor: 'pointer',
-}
+} as const
 
 const btnOrange = {
   width: '100%',
@@ -464,7 +437,7 @@ const btnOrange = {
   fontWeight: 'bold',
   fontSize: 16,
   cursor: 'pointer',
-}
+} as const
 
 const btnRed = {
   width: '100%',
@@ -476,4 +449,4 @@ const btnRed = {
   fontWeight: 'bold',
   fontSize: 16,
   cursor: 'pointer',
-}
+} as const

@@ -8,11 +8,12 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { teamName, coachName, playerNames } = await req.json()
+    const body = await req.json()
+    const { name, coachName, logoUrl, playerNames } = body
 
-    if (!teamName || !String(teamName).trim()) {
+    if (!name || !String(name).trim()) {
       return NextResponse.json(
-        { error: 'Nombre del equipo requerido' },
+        { error: 'Falta el nombre del equipo' },
         { status: 400 }
       )
     }
@@ -20,10 +21,11 @@ export async function POST(req: Request) {
     const { data: createdTeam, error: teamError } = await supabase
       .from('teams')
       .insert({
-        name: String(teamName).trim(),
+        name: String(name).trim(),
         coach_name: coachName ? String(coachName).trim() : null,
+        logo_url: logoUrl ? String(logoUrl).trim() : null,
       })
-      .select()
+      .select('*')
       .single()
 
     if (teamError || !createdTeam) {
@@ -33,12 +35,9 @@ export async function POST(req: Request) {
       )
     }
 
-    const cleanPlayers =
-      Array.isArray(playerNames)
-        ? playerNames
-            .map((x) => String(x).trim())
-            .filter(Boolean)
-        : []
+    const cleanPlayers = Array.isArray(playerNames)
+      ? playerNames.map((p) => String(p).trim()).filter(Boolean)
+      : []
 
     if (cleanPlayers.length > 0) {
       const rows = cleanPlayers.map((playerName) => ({
@@ -58,10 +57,10 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, team: createdTeam })
-  } catch (err: any) {
+    return NextResponse.json({ ok: true, team: createdTeam })
+  } catch (error: any) {
     return NextResponse.json(
-      { error: err?.message || 'Error interno del servidor' },
+      { error: error?.message || 'Error interno' },
       { status: 500 }
     )
   }

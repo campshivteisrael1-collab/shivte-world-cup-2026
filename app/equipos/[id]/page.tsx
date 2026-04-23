@@ -1,7 +1,8 @@
 'use client'
 
-import { use, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -13,7 +14,9 @@ function formatTime(seconds: number) {
   const safe = Math.max(0, seconds)
   const minutes = Math.floor(safe / 60)
   const secs = safe % 60
-  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  return `${minutes.toString().padStart(2, '0')}:${secs
+    .toString()
+    .padStart(2, '0')}`
 }
 
 function getMatchTitle(match: any) {
@@ -69,11 +72,8 @@ function TeamMatchCard({ match }: { match: any }) {
   }, [startedAt, now])
 
   let bgColor = '#f5f5f5'
-  if (status === 'submitted') {
-    bgColor = '#d4edda'
-  } else if (remainingSeconds <= 0 && startedAt) {
-    bgColor = '#ffe5e5'
-  }
+  if (status === 'submitted') bgColor = '#d4edda'
+  else if (remainingSeconds <= 0 && startedAt) bgColor = '#ffe5e5'
 
   return (
     <div
@@ -98,7 +98,7 @@ function TeamMatchCard({ match }: { match: any }) {
       </div>
 
       <div style={{ fontSize: 13, color: '#666', marginBottom: 4 }}>
-        {match.sport?.display_name || match.sport?.name}
+        {match.sport?.display_name || match.sport?.name || 'Deporte'}
       </div>
 
       {match.match_time && (
@@ -258,182 +258,196 @@ function TeamMatchCard({ match }: { match: any }) {
   )
 }
 
-export default function EquipoPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
-  const resolvedParams = use(params)
-  const teamId = Number(resolvedParams.id)
+export default function EquipoDetallePage() {
+  const params = useParams()
+  const id = params?.id as string
 
-  const [team, setTeam] = useState<any>(null)
-  const [players, setPlayers] = useState<any[]>([])
-  const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [team, setTeam] = useState<any>(null)
+  const [matches, setMatches] = useState<any[]>([])
+  const [error, setError] = useState('')
 
   useEffect(() => {
     async function load() {
-      const { data: team } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', teamId)
-        .single()
+      try {
+        setLoading(true)
+        setError('')
 
-      const { data: players } = await supabase
-        .from('team_players')
-        .select('*')
-        .eq('team_id', teamId)
-        .order('player_name')
-
-      const { data: allMatches } = await supabase
-        .from('matches')
-        .select('*')
-
-      const { data: teams } = await supabase.from('teams').select('*')
-      const { data: sports } = await supabase
-        .from('Sports')
-        .select('id, name, display_name, location, referees_display, rules')
-
-      const { data: restSchedule } = await supabase
-        .from('rest_schedule')
-        .select('*')
-
-      const jornadasMap: Record<string, any[]> = {}
-
-      allMatches?.forEach((m: any) => {
-        const jornada = m.match_code.split('-')[0]
-
-        if (!jornadasMap[jornada]) jornadasMap[jornada] = []
-        jornadasMap[jornada].push(m)
-      })
-
-      const jornadas = Object.keys(jornadasMap).sort()
-      const esJornadaRegular = (jornada: string) => /^J\d+/.test(jornada)
-
-      const finalList = jornadas
-        .map((jornada) => {
-          const matches = jornadasMap[jornada]
-
-          const equiposJugando = new Set<number>()
-          matches.forEach((m: any) => {
-            equiposJugando.add(m.team_a_id)
-            equiposJugando.add(m.team_b_id)
-          })
-
-          if (esJornadaRegular(jornada) && !equiposJugando.has(teamId)) {
-            const rest = restSchedule?.find((r: any) => r.jornada === jornada)
-
-            return {
-              isRest: true,
-              jornada,
-              horario: rest?.horario || matches?.[0]?.match_time || null,
-            }
-          }
-
-          const match = matches.find(
-            (m: any) => m.team_a_id === teamId || m.team_b_id === teamId
-          )
-
-          if (!match) return null
-
-          const teamA = teams?.find((t: any) => t.id === match.team_a_id)
-          const teamB = teams?.find((t: any) => t.id === match.team_b_id)
-          const sport = sports?.find((s: any) => s.id === match.sport_id)
-
-          return {
-            ...match,
-            teamA,
-            teamB,
-            sport,
-          }
+        const teamsRes = await fetch('/api/admin/teams-list', {
+          cache: 'no-store',
         })
-        .filter(Boolean)
+        const teamsJson = await teamsRes.json()
 
-      setTeam(team)
-      setPlayers(players || [])
-      setItems(finalList)
-      setLoading(false)
+        if (!teamsRes.ok) {
+          setError(teamsJson.error || 'No se pudo cargar el equipo')
+          setLoading(false)
+          return
+        }
+
+        const currentTeam = (teamsJson.teams || []).find(
+          (t: any) => String(t.id) === String(id)
+        )
+
+        if (!currentTeam) {
+          setError('Equipo no encontrado')
+          setLoading(false)
+          return
+        }
+
+        const { data: matchesData, error: matchesError } = await supabase
+          .from('matches')
+          .select('*')
+          .or(`team_a_id.eq.${id},team_b_id.eq.${id}`)
+          .order('match_code')
+
+        if (matchesError) {
+          setError(matchesError.message || 'No se pudieron cargar los partidos')
+          setLoading(false)
+          return
+        }
+
+        const { data: sportsData } = await supabase
+          .from('Sports')
+          .select('*')
+
+        const teamsMap = new Map(
+          (teamsJson.teams || []).map((t: any) => [String(t.id), t])
+        )
+
+        const sportsMap = new Map(
+          (sportsData || []).map((s: any) => [String(s.id), s])
+        )
+
+        const enrichedMatches = (matchesData || []).map((match: any) => ({
+          ...match,
+          teamA: teamsMap.get(String(match.team_a_id)) || null,
+          teamB: teamsMap.get(String(match.team_b_id)) || null,
+          sport: sportsMap.get(String(match.sport_id)) || null,
+        }))
+
+        setTeam(currentTeam)
+        setMatches(enrichedMatches)
+        setLoading(false)
+      } catch (e: any) {
+        setError(e?.message || 'No se pudo cargar el equipo')
+        setLoading(false)
+      }
     }
 
-    load()
-  }, [teamId])
+    if (id) load()
+  }, [id])
 
   if (loading) {
     return <main style={{ padding: 20 }}>Cargando...</main>
   }
 
-  if (!team) {
-    return <main style={{ padding: 20 }}>Equipo no encontrado</main>
+  if (error || !team) {
+    return (
+      <main style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
+        <a
+          href="/equipos"
+          style={{
+            display: 'inline-block',
+            marginBottom: 12,
+            padding: '8px 14px',
+            background: '#111827',
+            color: 'white',
+            borderRadius: 999,
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: 14,
+          }}
+        >
+          ← Equipos
+        </a>
+
+        <div
+          style={{
+            padding: 14,
+            borderRadius: 12,
+            background: '#fee2e2',
+            color: '#991b1b',
+            fontWeight: 'bold',
+          }}
+        >
+          {error || 'No se encontró el equipo'}
+        </div>
+      </main>
+    )
   }
 
   return (
     <main
       style={{
         padding: 16,
-        maxWidth: 760,
+        maxWidth: 900,
         margin: '0 auto',
         fontFamily: 'Arial, sans-serif',
       }}
     >
-      <a
-        href="/"
+      <div
         style={{
-          display: 'inline-block',
-          marginBottom: 12,
-          padding: '8px 14px',
-          background: '#111827',
-          color: 'white',
-          borderRadius: 999,
-          textDecoration: 'none',
-          fontWeight: 'bold',
-          fontSize: 14,
+          display: 'flex',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 14,
         }}
       >
-        ← Inicio
-      </a>
+        <a
+          href="/"
+          style={{
+            display: 'inline-block',
+            padding: '8px 14px',
+            background: '#111827',
+            color: 'white',
+            borderRadius: 999,
+            textDecoration: 'none',
+            fontWeight: 'bold',
+            fontSize: 14,
+          }}
+        >
+          ← Inicio
+        </a>
 
-      <div>
-        <Link
+        <a
           href="/equipos"
           style={{
             display: 'inline-block',
-            marginBottom: 16,
-            padding: '8px 12px',
-            background: '#eee',
-            borderRadius: 10,
+            padding: '8px 14px',
+            background: '#111827',
+            color: 'white',
+            borderRadius: 999,
             textDecoration: 'none',
-            color: 'black',
             fontWeight: 'bold',
+            fontSize: 14,
           }}
         >
           ← Equipos
-        </Link>
+        </a>
       </div>
 
       <div
         style={{
-          border: '1px solid #ddd',
-          borderRadius: 18,
-          padding: 16,
+          borderRadius: 22,
           background: '#f7f7f7',
-          marginBottom: 20,
-          boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
+          border: '1px solid #ddd',
+          padding: 18,
+          marginBottom: 18,
         }}
       >
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
             gap: 14,
+            alignItems: 'center',
             marginBottom: 14,
-            flexWrap: 'wrap',
           }}
         >
           <div
             style={{
-              width: 82,
-              height: 82,
-              borderRadius: 18,
+              width: 72,
+              height: 72,
+              borderRadius: 16,
               background: '#fff',
               border: '1px solid #e5e7eb',
               display: 'flex',
@@ -447,8 +461,8 @@ export default function EquipoPage({
                 src={team.logo_url}
                 alt={team.name}
                 style={{
-                  maxWidth: 62,
-                  maxHeight: 62,
+                  maxWidth: 56,
+                  maxHeight: 56,
                   objectFit: 'contain',
                   display: 'block',
                 }}
@@ -456,60 +470,41 @@ export default function EquipoPage({
             ) : null}
           </div>
 
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 28,
-              lineHeight: 1.1,
-              overflowWrap: 'anywhere',
-            }}
-          >
-            {team.name}
-          </h1>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.1 }}>
+              {team.name}
+            </h1>
+          </div>
         </div>
 
         <p style={{ margin: '8px 0', lineHeight: 1.45 }}>
-          <strong>Director técnico:</strong> {team.coach_name || 'Por asignar'}
+          <strong>Director técnico:</strong>{' '}
+          {team.coach_name || 'Por asignar'}
         </p>
 
         <p style={{ margin: '8px 0', lineHeight: 1.5 }}>
           <strong>Jugadores:</strong>{' '}
-          {players.length > 0
-            ? players.map((p: any) => p.player_name).join(', ')
+          {Array.isArray(team.players) && team.players.length > 0
+            ? team.players.join(', ')
             : 'Por asignar'}
         </p>
       </div>
 
-      {items.map((item: any, i: number) =>
-        item.isRest ? (
-          <div
-            key={i}
-            style={{
-              borderRadius: 18,
-              padding: 16,
-              marginBottom: 16,
-              background: '#fff3cd',
-              border: '1px solid #ddd',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
-            }}
-          >
-            <div style={{ fontWeight: 'bold', fontSize: 17 }}>
-              {item.jornada.replace(/^J(\d+)$/, 'Jornada $1')} — DESCANSO
-            </div>
+      <h2 style={{ marginTop: 0, marginBottom: 14 }}>Partidos</h2>
 
-            {item.horario && (
-              <div style={{ fontSize: 13, color: '#666', marginTop: 6 }}>
-                Horario: {item.horario}
-              </div>
-            )}
-
-            <div style={{ marginTop: 10, lineHeight: 1.4 }}>
-              Este equipo no juega en esta jornada
-            </div>
-          </div>
-        ) : (
-          <TeamMatchCard key={item.id} match={item} />
-        )
+      {matches.length === 0 ? (
+        <div
+          style={{
+            borderRadius: 18,
+            padding: 16,
+            background: '#f7f7f7',
+            border: '1px solid #ddd',
+          }}
+        >
+          No hay partidos registrados para este equipo.
+        </div>
+      ) : (
+        matches.map((match) => <TeamMatchCard key={match.id} match={match} />)
       )}
     </main>
   )
