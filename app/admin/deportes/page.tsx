@@ -2,46 +2,69 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 export default function AdminDeportesPage() {
   const [sports, setSports] = useState<any[]>([])
+  const [referees, setReferees] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from('Sports')
-        .select('*')
-        .order('id', { ascending: true })
+      setLoading(true)
+      setErrorMsg('')
 
-      setSports(data || [])
+      const res = await fetch('/api/admin/referees-list', {
+        cache: 'no-store',
+      })
+
+      const json = await res.json()
+
+      if (!res.ok) {
+        setErrorMsg(json?.error || 'Error cargando deportes')
+        setLoading(false)
+        return
+      }
+
+      setSports(json.sports || [])
+      setReferees(json.referees || [])
       setLoading(false)
     }
 
     load()
   }, [])
 
+  function getRefereesForSport(sportId: number | string) {
+    const sportReferees = referees.filter(
+      (referee) =>
+        String(referee.sport_id || '') === String(sportId || '') &&
+        referee.is_active !== false
+    )
+
+    if (sportReferees.length === 0) return 'Sin asignar'
+
+    return sportReferees
+      .map((referee) => referee.name || referee.username)
+      .join(', ')
+  }
+
   const filteredSports = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return sports
 
     return sports.filter((sport) => {
+      const refereesDisplay = getRefereesForSport(sport.id).toLowerCase()
+
       return (
         String(sport.name || '').toLowerCase().includes(q) ||
         String(sport.display_name || '').toLowerCase().includes(q) ||
         String(sport.location || '').toLowerCase().includes(q) ||
-        String(sport.referees_display || '').toLowerCase().includes(q) ||
-        String(sport.rules || '').toLowerCase().includes(q)
+        String(sport.rules || '').toLowerCase().includes(q) ||
+        refereesDisplay.includes(q)
       )
     })
-  }, [sports, search])
+  }, [sports, search, referees])
 
   if (loading) {
     return <main style={{ padding: 20 }}>Cargando...</main>
@@ -124,6 +147,22 @@ export default function AdminDeportesPage() {
         />
       </div>
 
+      {errorMsg && (
+        <div
+          style={{
+            border: '1px solid #fecaca',
+            borderRadius: 18,
+            background: '#fef2f2',
+            padding: 18,
+            color: '#991b1b',
+            marginBottom: 18,
+            fontWeight: 'bold',
+          }}
+        >
+          {errorMsg}
+        </div>
+      )}
+
       <div
         style={{
           display: 'grid',
@@ -163,7 +202,8 @@ export default function AdminDeportesPage() {
             </p>
 
             <p style={{ margin: '8px 0', lineHeight: 1.4 }}>
-              <strong>Árbitros visibles:</strong> {sport.referees_display || '—'}
+              <strong>Árbitro asignado:</strong>{' '}
+              {getRefereesForSport(sport.id)}
             </p>
 
             <p style={{ margin: '8px 0', lineHeight: 1.45 }}>

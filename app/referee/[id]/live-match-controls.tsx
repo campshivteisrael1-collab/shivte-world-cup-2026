@@ -40,9 +40,48 @@ export default function LiveMatchControls({
   const [savingNote, setSavingNote] = useState(false)
   const [error, setError] = useState('')
   const [now, setNow] = useState(Date.now())
+  const [pointFlash, setPointFlash] = useState<'A' | 'B' | null>(null)
 
   const noteTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const firstRenderRef = useRef(true)
+  const resultSavedRef = useRef(false)
+  const savingFinalRef = useRef(false)
+  const lastMinuteAlertRef = useRef(false)
+  const pointFlashTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  function vibrate(pattern: number | number[]) {
+    try {
+      if (typeof window !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(pattern)
+      }
+    } catch {}
+  }
+
+  function playWhistle() {
+    try {
+      const audio = new Audio('/sounds/whistle.mp3')
+      audio.volume = 1
+      audio.play().catch(() => {})
+    } catch {}
+  }
+
+  function triggerPointFeedback(team: 'A' | 'B') {
+    setPointFlash(team)
+    vibrate(80)
+
+    if (pointFlashTimeoutRef.current) {
+      clearTimeout(pointFlashTimeoutRef.current)
+    }
+
+    pointFlashTimeoutRef.current = setTimeout(() => {
+      setPointFlash(null)
+    }, 650)
+  }
+
+  function triggerFinalFeedback() {
+    playWhistle()
+    vibrate([250, 120, 250])
+  }
 
   useEffect(() => {
     if (!startedAt) return
@@ -60,6 +99,18 @@ export default function LiveMatchControls({
     const endMs = startMs + 20 * 60 * 1000
     return Math.ceil((endMs - now) / 1000)
   }, [startedAt, now])
+
+  const isLastMinute = startedAt && remainingSeconds <= 60 && remainingSeconds > 0
+  const isTimeFinished = startedAt && remainingSeconds <= 0
+
+  useEffect(() => {
+    if (!startedAt) return
+
+    if (remainingSeconds <= 60 && remainingSeconds > 0 && !lastMinuteAlertRef.current) {
+      lastMinuteAlertRef.current = true
+      vibrate([180, 80, 180])
+    }
+  }, [remainingSeconds, startedAt])
 
   async function startMatch() {
     setLoading(true)
@@ -96,6 +147,9 @@ export default function LiveMatchControls({
       return
     }
 
+    const increasedA = nextA > scoreA
+    const increasedB = nextB > scoreB
+
     setSavingScore(true)
     setError('')
 
@@ -120,6 +174,10 @@ export default function LiveMatchControls({
 
       setScoreA(result.live_score_a)
       setScoreB(result.live_score_b)
+
+      if (increasedA) triggerPointFeedback('A')
+      if (increasedB) triggerPointFeedback('B')
+
       setSavingScore(false)
     } catch (err: any) {
       setError(err?.message || 'No se pudo actualizar el marcador')
@@ -177,10 +235,15 @@ export default function LiveMatchControls({
     }
   }, [note])
 
-  async function saveFinalResult(e: React.FormEvent) {
-    e.preventDefault()
+  async function submitFinalResult(options?: { automatic?: boolean }) {
+    if (resultSavedRef.current || savingFinalRef.current) return
+
+    resultSavedRef.current = true
+    savingFinalRef.current = true
     setLoading(true)
     setError('')
+
+    triggerFinalFeedback()
 
     try {
       const res = await fetch('/api/match-result', {
@@ -198,29 +261,67 @@ export default function LiveMatchControls({
       try {
         result = JSON.parse(text)
       } catch {
+        resultSavedRef.current = false
+        savingFinalRef.current = false
         setError(`La API no devolvió JSON. Respuesta: ${text.slice(0, 200)}`)
         setLoading(false)
         return
       }
 
       if (!res.ok) {
+        resultSavedRef.current = false
+        savingFinalRef.current = false
         setError(result.error || 'Error al guardar')
         setLoading(false)
         return
       }
 
+      if (options?.automatic) {
+        alert('Tiempo terminado. El resultado se guardó automáticamente.')
+      }
+
       router.push('/referee')
       router.refresh()
     } catch (err: any) {
+      resultSavedRef.current = false
+      savingFinalRef.current = false
       setError(err?.message || 'No se pudo guardar')
       setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    if (!startedAt) return
+    if (resultSavedRef.current || savingFinalRef.current) return
+
+    if (remainingSeconds <= -30) {
+      submitFinalResult({ automatic: true })
+    }
+  }, [remainingSeconds, startedAt])
+
+  async function saveFinalResult(e: React.FormEvent) {
+    e.preventDefault()
+    await submitFinalResult({ automatic: false })
   }
 
   const statusLabel = startedAt ? 'EN JUEGO' : 'PENDIENTE'
 
   return (
     <div style={{ marginTop: 20, maxWidth: 720 }}>
+      <style>{`
+        @keyframes shivtePulseRed {
+          0% { box-shadow: 0 0 0 rgba(220, 38, 38, 0.0); transform: scale(1); }
+          50% { box-shadow: 0 0 22px rgba(220, 38, 38, 0.45); transform: scale(1.01); }
+          100% { box-shadow: 0 0 0 rgba(220, 38, 38, 0.0); transform: scale(1); }
+        }
+
+        @keyframes shivtePointFlash {
+          0% { transform: scale(1); box-shadow: 0 0 0 rgba(22, 163, 74, 0); }
+          45% { transform: scale(1.08); box-shadow: 0 0 24px rgba(22, 163, 74, 0.65); }
+          100% { transform: scale(1); box-shadow: 0 0 0 rgba(22, 163, 74, 0); }
+        }
+      `}</style>
+
       <div style={{ marginBottom: 14, fontWeight: 'bold', color: startedAt ? '#2563eb' : '#666' }}>
         Status: {statusLabel}
       </div>
@@ -250,8 +351,9 @@ export default function LiveMatchControls({
             marginBottom: 20,
             padding: 16,
             borderRadius: 16,
-            background: remainingSeconds > 0 ? '#f4f4f4' : '#ffe8e8',
-            border: '1px solid #ddd',
+            background: isLastMinute || isTimeFinished ? '#ffe8e8' : '#f4f4f4',
+            border: isLastMinute || isTimeFinished ? '2px solid #dc2626' : '1px solid #ddd',
+            animation: isLastMinute ? 'shivtePulseRed 1s infinite' : undefined,
           }}
         >
           <div style={{ fontSize: 13, color: '#666' }}>Tiempo restante</div>
@@ -260,13 +362,27 @@ export default function LiveMatchControls({
               fontSize: 42,
               fontWeight: 'bold',
               lineHeight: 1.1,
+              color: isLastMinute || isTimeFinished ? '#b91c1c' : 'black',
             }}
           >
             {formatTime(remainingSeconds)}
           </div>
+
+          {isLastMinute && (
+            <div style={{ color: '#b91c1c', marginTop: 8, fontWeight: 'bold' }}>
+              ÚLTIMO MINUTO
+            </div>
+          )}
+
           {remainingSeconds <= 0 && (
             <div style={{ color: '#c00', marginTop: 8, fontWeight: 'bold' }}>
               Tiempo terminado
+            </div>
+          )}
+
+          {remainingSeconds <= -30 && (
+            <div style={{ color: '#c00', marginTop: 8, fontWeight: 'bold' }}>
+              Guardando resultado automáticamente...
             </div>
           )}
         </div>
@@ -289,7 +405,15 @@ export default function LiveMatchControls({
             marginBottom: 18,
           }}
         >
-          <div style={{ textAlign: 'center' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              borderRadius: 16,
+              padding: 8,
+              animation: pointFlash === 'A' ? 'shivtePointFlash 0.65s ease' : undefined,
+              background: pointFlash === 'A' ? '#dcfce7' : 'transparent',
+            }}
+          >
             <div style={{ fontWeight: 'bold', fontSize: 24 }}>{teamAName}</div>
             <div style={{ fontSize: 48, fontWeight: 'bold', lineHeight: 1.1 }}>
               {scoreA}
@@ -298,7 +422,15 @@ export default function LiveMatchControls({
 
           <div style={{ fontSize: 30, fontWeight: 'bold' }}>VS</div>
 
-          <div style={{ textAlign: 'center' }}>
+          <div
+            style={{
+              textAlign: 'center',
+              borderRadius: 16,
+              padding: 8,
+              animation: pointFlash === 'B' ? 'shivtePointFlash 0.65s ease' : undefined,
+              background: pointFlash === 'B' ? '#dcfce7' : 'transparent',
+            }}
+          >
             <div style={{ fontWeight: 'bold', fontSize: 24 }}>{teamBName}</div>
             <div style={{ fontSize: 48, fontWeight: 'bold', lineHeight: 1.1 }}>
               {scoreB}
@@ -341,7 +473,7 @@ export default function LiveMatchControls({
               <button
                 type="button"
                 onClick={() => updateScore(scoreA + 1, scoreB)}
-                disabled={savingScore || !startedAt}
+                disabled={savingScore || !startedAt || loading}
                 style={{
                   width: '100%',
                   padding: 16,
@@ -360,7 +492,7 @@ export default function LiveMatchControls({
               <button
                 type="button"
                 onClick={() => updateScore(Math.max(0, scoreA - 1), scoreB)}
-                disabled={savingScore || !startedAt || scoreA === 0}
+                disabled={savingScore || !startedAt || scoreA === 0 || loading}
                 style={{
                   width: '100%',
                   padding: 16,
@@ -407,7 +539,7 @@ export default function LiveMatchControls({
               <button
                 type="button"
                 onClick={() => updateScore(scoreA, scoreB + 1)}
-                disabled={savingScore || !startedAt}
+                disabled={savingScore || !startedAt || loading}
                 style={{
                   width: '100%',
                   padding: 16,
@@ -426,7 +558,7 @@ export default function LiveMatchControls({
               <button
                 type="button"
                 onClick={() => updateScore(scoreA, Math.max(0, scoreB - 1))}
-                disabled={savingScore || !startedAt || scoreB === 0}
+                disabled={savingScore || !startedAt || scoreB === 0 || loading}
                 style={{
                   width: '100%',
                   padding: 16,

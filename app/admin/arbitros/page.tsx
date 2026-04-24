@@ -2,32 +2,35 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 export default function AdminArbitrosPage() {
   const [referees, setReferees] = useState<any[]>([])
+  const [sports, setSports] = useState<any[]>([])
   const [matches, setMatches] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
     async function load() {
-      const { data: r } = await supabase
-        .from('referees')
-        .select('*')
-        .order('name')
+      setLoading(true)
+      setErrorMsg('')
 
-      const { data: m } = await supabase
-        .from('matches')
-        .select('*')
+      const res = await fetch('/api/admin/referees-list', {
+        cache: 'no-store',
+      })
 
-      setReferees(r || [])
-      setMatches(m || [])
+      const json = await res.json()
+
+      if (!res.ok) {
+        setErrorMsg(json?.error || 'Error cargando árbitros')
+        setLoading(false)
+        return
+      }
+
+      setReferees(json.referees || [])
+      setSports(json.sports || [])
+      setMatches(json.matches || [])
       setLoading(false)
     }
 
@@ -39,16 +42,31 @@ export default function AdminArbitrosPage() {
     if (!q) return referees
 
     return referees.filter((r) => {
+      const sportName = getSportName(r.sport_id).toLowerCase()
+
       return (
         String(r.name || '').toLowerCase().includes(q) ||
         String(r.username || '').toLowerCase().includes(q) ||
-        String(r.profile_id || '').toLowerCase().includes(q)
+        sportName.includes(q)
       )
     })
-  }, [referees, search])
+  }, [referees, search, sports])
 
-  function matchCount(profileId: string) {
-    return matches.filter((m) => m.referee_id === profileId).length
+  function getSportName(sportId: number | string | null) {
+    if (!sportId) return 'Sin deporte'
+
+    const sport = sports.find((s) => String(s.id) === String(sportId))
+
+    return sport?.display_name || sport?.name || 'Sin deporte'
+  }
+
+  function matchCount(referee: any) {
+    return matches.filter((m) => {
+      return (
+        String(m.referee_id || '') === String(referee.id || '') ||
+        String(m.referee_id || '') === String(referee.profile_id || '')
+      )
+    }).length
   }
 
   if (loading) {
@@ -121,7 +139,7 @@ export default function AdminArbitrosPage() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nombre o usuario"
+          placeholder="Buscar por nombre, usuario o deporte"
           style={{
             width: '100%',
             padding: 12,
@@ -132,70 +150,128 @@ export default function AdminArbitrosPage() {
         />
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))',
-          gap: 16,
-        }}
-      >
-        {filteredReferees.map((referee) => (
-          <div
-            key={referee.profile_id}
-            style={{
-              border: '1px solid #ddd',
-              borderRadius: 18,
-              background: '#fff',
-              padding: 16,
-              boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
-            }}
-          >
+      {errorMsg && (
+        <div
+          style={{
+            border: '1px solid #fecaca',
+            borderRadius: 18,
+            background: '#fef2f2',
+            padding: 18,
+            color: '#991b1b',
+            marginBottom: 18,
+          }}
+        >
+          {errorMsg}
+        </div>
+      )}
+
+      {filteredReferees.length === 0 ? (
+        <div
+          style={{
+            border: '1px solid #ddd',
+            borderRadius: 18,
+            background: '#fff',
+            padding: 18,
+            color: '#555',
+          }}
+        >
+          No hay árbitros para mostrar.
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))',
+            gap: 16,
+          }}
+        >
+          {filteredReferees.map((referee) => (
             <div
+              key={referee.id || referee.profile_id}
               style={{
-                fontWeight: 'bold',
-                fontSize: 22,
-                marginBottom: 10,
-                lineHeight: 1.15,
-                overflowWrap: 'anywhere',
+                border: '1px solid #ddd',
+                borderRadius: 18,
+                background: '#fff',
+                padding: 16,
+                boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
               }}
             >
-              {referee.name}
-            </div>
-
-            <p style={{ margin: '8px 0', lineHeight: 1.4 }}>
-              <strong>Usuario:</strong> {referee.username || '—'}
-            </p>
-
-            <p style={{ margin: '8px 0', lineHeight: 1.4 }}>
-              <strong>Partidos asignados:</strong> {matchCount(referee.profile_id)}
-            </p>
-
-            <div
-              style={{
-                display: 'flex',
-                gap: 10,
-                flexWrap: 'wrap',
-                marginTop: 14,
-              }}
-            >
-              <Link
-                href={`/admin/arbitros/${referee.profile_id}`}
+              <div
                 style={{
-                  display: 'inline-block',
-                  padding: '10px 12px',
-                  background: '#111827',
-                  color: 'white',
-                  borderRadius: 10,
-                  textDecoration: 'none',
-                  fontWeight: 'bold',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                  marginBottom: 10,
                 }}
               >
-                Editar
-              </Link>
+                <div
+                  style={{
+                    fontWeight: 'bold',
+                    fontSize: 22,
+                    lineHeight: 1.15,
+                    overflowWrap: 'anywhere',
+                  }}
+                >
+                  {referee.name || 'Sin nombre'}
+                </div>
+
+                <span
+                  style={{
+                    padding: '5px 9px',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    background:
+                      referee.is_active === false ? '#fee2e2' : '#dcfce7',
+                    color:
+                      referee.is_active === false ? '#991b1b' : '#166534',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {referee.is_active === false ? 'Inactivo' : 'Activo'}
+                </span>
+              </div>
+
+              <p style={{ margin: '8px 0', lineHeight: 1.4 }}>
+                <strong>Usuario:</strong> {referee.username || '—'}
+              </p>
+
+              <p style={{ margin: '8px 0', lineHeight: 1.4 }}>
+                <strong>Deporte:</strong> {getSportName(referee.sport_id)}
+              </p>
+
+              <p style={{ margin: '8px 0', lineHeight: 1.4 }}>
+                <strong>Partidos asignados:</strong> {matchCount(referee)}
+              </p>
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  marginTop: 14,
+                }}
+              >
+                <Link
+                  href={`/admin/arbitros/${referee.id || referee.profile_id}`}
+                  style={{
+                    display: 'inline-block',
+                    padding: '10px 12px',
+                    background: '#111827',
+                    color: 'white',
+                    borderRadius: 10,
+                    textDecoration: 'none',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  Editar
+                </Link>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </main>
   )
 }

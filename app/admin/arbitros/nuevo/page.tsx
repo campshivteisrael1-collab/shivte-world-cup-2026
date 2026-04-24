@@ -1,7 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export default function AdminNuevoArbitroPage() {
   const router = useRouter()
@@ -9,8 +15,24 @@ export default function AdminNuevoArbitroPage() {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [sportId, setSportId] = useState<number | ''>('')
+
+  const [sports, setSports] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    async function loadSports() {
+      const { data } = await supabase
+        .from('Sports')
+        .select('*')
+        .order('id')
+
+      setSports(data || [])
+    }
+
+    loadSports()
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -21,7 +43,7 @@ export default function AdminNuevoArbitroPage() {
       const res = await fetch('/api/admin/referee-create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, username, password }),
+        body: JSON.stringify({ name, username, password, sportId }),
       })
 
       const result = await res.json()
@@ -79,9 +101,7 @@ export default function AdminNuevoArbitroPage() {
         }}
       >
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Nombre
-          </label>
+          <label style={label}>Nombre</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -91,9 +111,7 @@ export default function AdminNuevoArbitroPage() {
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Usuario
-          </label>
+          <label style={label}>Usuario</label>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -103,9 +121,7 @@ export default function AdminNuevoArbitroPage() {
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Contraseña
-          </label>
+          <label style={label}>Contraseña</label>
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -114,20 +130,37 @@ export default function AdminNuevoArbitroPage() {
           />
         </div>
 
-        {error && (
-          <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>
-        )}
+        <div style={{ marginBottom: 14 }}>
+          <label style={label}>Deporte que controla</label>
+          <select
+            value={sportId}
+            onChange={(e) => setSportId(e.target.value ? Number(e.target.value) : '')}
+            required
+            style={input}
+          >
+            <option value="">Selecciona deporte</option>
+            {sports.map((sport) => (
+              <option key={sport.id} value={sport.id}>
+                {sport.display_name || sport.name || `Deporte ${sport.id}`}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={btnGreen}
-        >
+        {error && <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>}
+
+        <button type="submit" disabled={loading} style={btnGreen}>
           {loading ? 'Guardando...' : 'Guardar árbitro'}
         </button>
       </form>
     </main>
   )
+}
+
+const label = {
+  fontWeight: 'bold',
+  display: 'block',
+  marginBottom: 6,
 }
 
 const input = {

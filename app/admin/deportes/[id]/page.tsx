@@ -22,7 +22,7 @@ export default function AdminEditarDeportePage({
   const [name, setName] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [location, setLocation] = useState('')
-  const [refereesDisplay, setRefereesDisplay] = useState('')
+  const [assignedReferees, setAssignedReferees] = useState('Sin asignar')
   const [rules, setRules] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -31,18 +31,47 @@ export default function AdminEditarDeportePage({
 
   useEffect(() => {
     async function load() {
-      const { data: sport } = await supabase
+      setLoading(true)
+      setError('')
+
+      const { data: sportData, error: sportError } = await supabase
         .from('Sports')
         .select('*')
         .eq('id', sportId)
         .single()
 
-      setSport(sport)
-      setName(sport?.name || '')
-      setDisplayName(sport?.display_name || '')
-      setLocation(sport?.location || '')
-      setRefereesDisplay(sport?.referees_display || '')
-      setRules(sport?.rules || '')
+      if (sportError || !sportData) {
+        setError(sportError?.message || 'No se encontró el deporte')
+        setLoading(false)
+        return
+      }
+
+      const refereesRes = await fetch('/api/admin/referees-list', {
+        cache: 'no-store',
+      })
+
+      const refereesJson = await refereesRes.json()
+
+      const sportReferees = (refereesJson.referees || []).filter(
+        (referee: any) =>
+          String(referee.sport_id || '') === String(sportId) &&
+          referee.is_active !== false
+      )
+
+      setSport(sportData)
+      setName(sportData.name || '')
+      setDisplayName(sportData.display_name || '')
+      setLocation(sportData.location || '')
+      setRules(sportData.rules || '')
+
+      setAssignedReferees(
+        sportReferees.length > 0
+          ? sportReferees
+              .map((referee: any) => referee.name || referee.username)
+              .join(', ')
+          : 'Sin asignar'
+      )
+
       setLoading(false)
     }
 
@@ -63,7 +92,6 @@ export default function AdminEditarDeportePage({
           name,
           display_name: displayName,
           location,
-          referees_display: refereesDisplay,
           rules,
         }),
       })
@@ -88,6 +116,7 @@ export default function AdminEditarDeportePage({
     const ok = window.confirm(
       '¿Seguro que quieres borrar este deporte? Esto puede afectar partidos existentes.'
     )
+
     if (!ok) return
 
     setDeleting(true)
@@ -159,9 +188,7 @@ export default function AdminEditarDeportePage({
         }}
       >
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Nombre interno
-          </label>
+          <label style={label}>Nombre interno</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -171,9 +198,7 @@ export default function AdminEditarDeportePage({
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Nombre visible
-          </label>
+          <label style={label}>Nombre visible</label>
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -183,9 +208,7 @@ export default function AdminEditarDeportePage({
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Ubicación
-          </label>
+          <label style={label}>Ubicación</label>
           <input
             value={location}
             onChange={(e) => setLocation(e.target.value)}
@@ -194,20 +217,15 @@ export default function AdminEditarDeportePage({
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Árbitros visibles
-          </label>
-          <input
-            value={refereesDisplay}
-            onChange={(e) => setRefereesDisplay(e.target.value)}
-            style={input}
-          />
+          <label style={label}>Árbitro asignado</label>
+          <input value={assignedReferees} disabled style={disabledInput} />
+          <p style={{ marginTop: 6, fontSize: 13, color: '#666' }}>
+            El árbitro se asigna únicamente desde Admin · Árbitros.
+          </p>
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: 6 }}>
-            Reglas
-          </label>
+          <label style={label}>Reglas</label>
           <textarea
             value={rules}
             onChange={(e) => setRules(e.target.value)}
@@ -220,16 +238,10 @@ export default function AdminEditarDeportePage({
           />
         </div>
 
-        {error && (
-          <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>
-        )}
+        {error && <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>}
 
         <div style={{ display: 'grid', gap: 10 }}>
-          <button
-            type="submit"
-            disabled={saving}
-            style={btnGreen}
-          >
+          <button type="submit" disabled={saving} style={btnGreen}>
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
 
@@ -247,12 +259,28 @@ export default function AdminEditarDeportePage({
   )
 }
 
+const label = {
+  fontWeight: 'bold',
+  display: 'block',
+  marginBottom: 6,
+}
+
 const input = {
   width: '100%',
   padding: 12,
   borderRadius: 12,
   border: '1px solid #ccc',
   fontSize: 15,
+}
+
+const disabledInput = {
+  width: '100%',
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #ccc',
+  fontSize: 15,
+  background: '#f3f4f6',
+  color: '#555',
 }
 
 const btnGreen = {

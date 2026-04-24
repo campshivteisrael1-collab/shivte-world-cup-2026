@@ -78,6 +78,7 @@ export default function AdminPartidosPage() {
   const [referees, setReferees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [resettingAll, setResettingAll] = useState(false)
+  const [creatingJornada, setCreatingJornada] = useState(false)
 
   const [teamFilter, setTeamFilter] = useState('')
   const [sportFilter, setSportFilter] = useState('')
@@ -144,6 +145,46 @@ export default function AdminPartidosPage() {
       return cA.localeCompare(cB, undefined, { numeric: true, sensitivity: 'base' })
     })
   }, [matches, teamFilter, sportFilter, phaseFilter, statusFilter])
+
+  async function handleAddJornada() {
+    const ok = window.confirm(
+      '¿Seguro que quieres aumentar una jornada?\n\nSe duplicará la última jornada regular existente y se creará la siguiente jornada con partidos pendientes.'
+    )
+
+    if (!ok) return
+
+    setCreatingJornada(true)
+
+    try {
+      const res = await fetch('/api/admin/matches-add-jornada', {
+        method: 'POST',
+      })
+
+      const text = await res.text()
+      let result: any = {}
+
+      try {
+        result = text ? JSON.parse(text) : {}
+      } catch {
+        alert('La ruta /api/admin/matches-add-jornada no devolvió JSON. Revisa que exista app/api/admin/matches-add-jornada/route.ts')
+        setCreatingJornada(false)
+        return
+      }
+
+      if (!res.ok) {
+        alert(result.error || 'No se pudo crear la jornada')
+        setCreatingJornada(false)
+        return
+      }
+
+      alert(result.message || 'Jornada creada correctamente.')
+      await loadData()
+      setCreatingJornada(false)
+    } catch (err: any) {
+      alert(err?.message || 'No se pudo crear la jornada')
+      setCreatingJornada(false)
+    }
+  }
 
   async function handleResetAllTournament() {
     const ok1 = window.confirm(
@@ -273,6 +314,22 @@ export default function AdminPartidosPage() {
         <h1 style={{ margin: 0, fontSize: 30 }}>Admin · Partidos</h1>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            onClick={handleAddJornada}
+            disabled={creatingJornada}
+            style={{
+              padding: '10px 14px',
+              background: '#2563eb',
+              color: 'white',
+              borderRadius: 12,
+              border: 'none',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+            }}
+          >
+            {creatingJornada ? 'Creando jornada...' : '+ Aumentar jornada'}
+          </button>
+
           <button
             onClick={handleResetAllTournament}
             disabled={resettingAll}

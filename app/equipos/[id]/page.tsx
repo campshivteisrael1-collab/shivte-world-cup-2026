@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -34,21 +33,38 @@ function getMatchTitle(match: any) {
 
 function TeamMatchCard({ match }: { match: any }) {
   const [now, setNow] = useState(Date.now())
-  const [scoreA, setScoreA] = useState(match.live_score_a ?? 0)
-  const [scoreB, setScoreB] = useState(match.live_score_b ?? 0)
+  const [liveScoreA, setLiveScoreA] = useState(match.live_score_a ?? 0)
+  const [liveScoreB, setLiveScoreB] = useState(match.live_score_b ?? 0)
+  const [finalScoreA, setFinalScoreA] = useState(match.score_a)
+  const [finalScoreB, setFinalScoreB] = useState(match.score_b)
   const [status, setStatus] = useState(match.status)
   const [startedAt, setStartedAt] = useState(match.started_at)
   const [open, setOpen] = useState(false)
 
+  const sportDurationMinutes = Number(
+    match.sport?.duration || match.sport?.duration_minutes || 20
+  )
+
   useEffect(() => {
     const interval = setInterval(async () => {
-      const res = await fetch(`/api/match-public?id=${match.id}`)
-      const data = await res.json()
+      try {
+        const res = await fetch(`/api/match-public?id=${match.id}`, {
+          cache: 'no-store',
+        })
 
-      setScoreA(data.live_score_a ?? 0)
-      setScoreB(data.live_score_b ?? 0)
-      setStatus(data.status)
-      setStartedAt(data.started_at)
+        if (!res.ok) return
+
+        const data = await res.json()
+
+        setLiveScoreA(data.live_score_a ?? 0)
+        setLiveScoreB(data.live_score_b ?? 0)
+        setFinalScoreA(data.score_a)
+        setFinalScoreB(data.score_b)
+        setStatus(data.status)
+        setStartedAt(data.started_at)
+      } catch {
+        // Evita romper la vista si falla el polling.
+      }
     }, 2000)
 
     return () => clearInterval(interval)
@@ -64,15 +80,26 @@ function TeamMatchCard({ match }: { match: any }) {
     return () => clearInterval(interval)
   }, [startedAt, status])
 
+  const hasFinalScore =
+    finalScoreA !== null &&
+    finalScoreA !== undefined &&
+    finalScoreB !== null &&
+    finalScoreB !== undefined
+
+  const scoreA = hasFinalScore ? finalScoreA : startedAt ? liveScoreA : 0
+  const scoreB = hasFinalScore ? finalScoreB : startedAt ? liveScoreB : 0
+
   const remainingSeconds = useMemo(() => {
-    if (!startedAt) return 20 * 60
+    if (!startedAt) return sportDurationMinutes * 60
+
     const startMs = new Date(startedAt).getTime()
-    const endMs = startMs + 20 * 60 * 1000
+    const endMs = startMs + sportDurationMinutes * 60 * 1000
+
     return Math.ceil((endMs - now) / 1000)
-  }, [startedAt, now])
+  }, [startedAt, now, sportDurationMinutes])
 
   let bgColor = '#f5f5f5'
-  if (status === 'submitted') bgColor = '#d4edda'
+  if (hasFinalScore) bgColor = '#d4edda'
   else if (remainingSeconds <= 0 && startedAt) bgColor = '#ffe5e5'
 
   return (
@@ -124,7 +151,7 @@ function TeamMatchCard({ match }: { match: any }) {
             overflowWrap: 'anywhere',
           }}
         >
-          {match.teamA?.name}
+          {match.teamA?.name || 'Equipo'}
         </div>
 
         <div
@@ -146,11 +173,11 @@ function TeamMatchCard({ match }: { match: any }) {
             overflowWrap: 'anywhere',
           }}
         >
-          {match.teamB?.name}
+          {match.teamB?.name || 'Equipo'}
         </div>
       </div>
 
-      {startedAt && status !== 'submitted' && (
+      {startedAt && !hasFinalScore && (
         <div
           style={{
             marginTop: 8,
@@ -183,23 +210,21 @@ function TeamMatchCard({ match }: { match: any }) {
           display: 'inline-block',
           padding: '4px 10px',
           borderRadius: 999,
-          background:
-            status === 'submitted'
-              ? '#d9f7df'
-              : startedAt
+          background: hasFinalScore
+            ? '#d9f7df'
+            : startedAt
               ? '#dbeafe'
               : '#fff2cc',
-          color:
-            status === 'submitted'
-              ? '#166534'
-              : startedAt
+          color: hasFinalScore
+            ? '#166534'
+            : startedAt
               ? '#1d4ed8'
               : '#92400e',
         }}
       >
-        {status === 'submitted' && 'CAPTURADO'}
-        {status !== 'submitted' && startedAt && 'EN JUEGO'}
-        {!startedAt && 'PENDIENTE'}
+        {hasFinalScore && 'CAPTURADO'}
+        {!hasFinalScore && startedAt && 'EN JUEGO'}
+        {!hasFinalScore && !startedAt && 'PENDIENTE'}
       </div>
 
       <div style={{ marginTop: 14 }}>
@@ -241,11 +266,10 @@ function TeamMatchCard({ match }: { match: any }) {
             </p>
           )}
 
-          {match.sport?.referees_display && (
-            <p style={{ margin: '6px 0', lineHeight: 1.4 }}>
-              <strong>Árbitros:</strong> {match.sport.referees_display}
-            </p>
-          )}
+          <p style={{ margin: '6px 0', lineHeight: 1.4 }}>
+            <strong>Árbitros:</strong>{' '}
+            {match.referees_display || 'Sin asignar'}
+          </p>
 
           {match.sport?.rules && (
             <p style={{ margin: '6px 0', lineHeight: 1.45 }}>
@@ -306,24 +330,66 @@ export default function EquipoDetallePage() {
           return
         }
 
-        const { data: sportsData } = await supabase
+        const { data: sportsData, error: sportsError } = await supabase
           .from('Sports')
           .select('*')
+
+        if (sportsError) {
+          setError(sportsError.message || 'No se pudieron cargar los deportes')
+          setLoading(false)
+          return
+        }
+
+        const refereesRes = await fetch('/api/admin/referees-list', {
+          cache: 'no-store',
+        })
+        const refereesJson = await refereesRes.json()
+
+        if (!refereesRes.ok) {
+          setError(refereesJson?.error || 'No se pudieron cargar los árbitros')
+          setLoading(false)
+          return
+        }
+
+        const refereesData = (refereesJson.referees || []).filter(
+          (referee: any) => referee.is_active !== false
+        )
 
         const teamsMap = new Map(
           (teamsJson.teams || []).map((t: any) => [String(t.id), t])
         )
 
         const sportsMap = new Map(
-          (sportsData || []).map((s: any) => [String(s.id), s])
+          (sportsData || []).map((s: any) => [Number(s.id), s])
         )
 
-        const enrichedMatches = (matchesData || []).map((match: any) => ({
-          ...match,
-          teamA: teamsMap.get(String(match.team_a_id)) || null,
-          teamB: teamsMap.get(String(match.team_b_id)) || null,
-          sport: sportsMap.get(String(match.sport_id)) || null,
-        }))
+        const refereesBySport = new Map<number, any[]>()
+
+        ;(refereesData || []).forEach((referee: any) => {
+          if (referee.sport_id === null || referee.sport_id === undefined) return
+
+          const key = Number(referee.sport_id)
+          const current = refereesBySport.get(key) || []
+
+          current.push(referee)
+          refereesBySport.set(key, current)
+        })
+
+        const enrichedMatches = (matchesData || []).map((match: any) => {
+          const sportId = Number(match.sport_id)
+          const sportReferees = refereesBySport.get(sportId) || []
+
+          return {
+            ...match,
+            teamA: teamsMap.get(String(match.team_a_id)) || null,
+            teamB: teamsMap.get(String(match.team_b_id)) || null,
+            sport: sportsMap.get(sportId) || null,
+            referees_display:
+              sportReferees.length > 0
+                ? sportReferees.map((r: any) => r.name || r.username).join(', ')
+                : 'Sin asignar',
+          }
+        })
 
         setTeam(currentTeam)
         setMatches(enrichedMatches)

@@ -2,12 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 export default function AdminEditarEquipoPage() {
   const params = useParams()
@@ -32,28 +26,25 @@ export default function AdminEditarEquipoPage() {
       setError('')
       setSuccess('')
 
-      const { data: team, error: teamError } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', id)
-        .single()
+      const res = await fetch(`/api/admin/team-detail?teamId=${id}`, {
+        cache: 'no-store',
+      })
 
-      const { data: players } = await supabase
-        .from('team_players')
-        .select('*')
-        .eq('team_id', id)
-        .order('player_name')
+      const result = await res.json()
 
-      if (teamError || !team) {
-        setError('No se pudo cargar el equipo')
+      if (!res.ok) {
+        setError(result.error || 'No se pudo cargar el equipo')
         setLoading(false)
         return
       }
 
-      setTeamName(team.name || '')
-      setCoachName(team.coach_name || '')
-      setLogoUrl(team.logo_url || '')
-      setPlayersText((players || []).map((p) => p.player_name).join('\n'))
+      setTeamName(result.team?.name || '')
+      setCoachName(result.team?.coach_name || '')
+      setLogoUrl(result.team?.logo_url || '')
+      setPlayersText(
+        (result.players || []).map((p: any) => p.player_name).join('\n')
+      )
+
       setLoading(false)
     }
 
@@ -106,6 +97,7 @@ export default function AdminEditarEquipoPage() {
     const ok = window.confirm(
       '¿Seguro que quieres borrar este equipo? Esta acción no se puede deshacer.'
     )
+
     if (!ok) return
 
     try {
@@ -160,12 +152,12 @@ export default function AdminEditarEquipoPage() {
         <a href="/" style={pillBlack}>← Inicio</a>
         <a href="/admin" style={pillBlack}>← Admin</a>
         <a href="/admin/equipos" style={pillBlack}>← Equipos</a>
-        <a href="/tabla#clasificacion-general" style={pillGreen}>Ver tabla general</a>
+        <a href="/tabla#clasificacion-general" style={pillGreen}>
+          Ver tabla general
+        </a>
       </div>
 
-      <h1 style={{ marginTop: 0, marginBottom: 18 }}>
-        Editar equipo
-      </h1>
+      <h1 style={{ marginTop: 0, marginBottom: 18 }}>Editar equipo</h1>
 
       <div
         style={{
@@ -211,34 +203,28 @@ export default function AdminEditarEquipoPage() {
           <textarea
             value={playersText}
             onChange={(e) => setPlayersText(e.target.value)}
-            style={{ ...input, minHeight: 180, resize: 'vertical' }}
+            style={{
+              ...input,
+              minHeight: 180,
+              resize: 'vertical',
+              fontFamily: 'Arial, sans-serif',
+            }}
             placeholder={'Uno por línea\nJacobo\nYosef\nDaniel'}
           />
+
           <div style={{ marginTop: 8, fontSize: 13, color: '#666' }}>
             Total de jugadores detectados: <strong>{playerNames.length}</strong>
           </div>
         </div>
 
         {error ? (
-          <div
-            style={{
-              marginBottom: 14,
-              color: '#b91c1c',
-              fontWeight: 'bold',
-            }}
-          >
+          <div style={{ marginBottom: 14, color: '#b91c1c', fontWeight: 'bold' }}>
             {error}
           </div>
         ) : null}
 
         {success ? (
-          <div
-            style={{
-              marginBottom: 14,
-              color: '#166534',
-              fontWeight: 'bold',
-            }}
-          >
+          <div style={{ marginBottom: 14, color: '#166534', fontWeight: 'bold' }}>
             {success}
           </div>
         ) : null}
@@ -283,20 +269,6 @@ export default function AdminEditarEquipoPage() {
   )
 }
 
-const label = {
-  display: 'block',
-  fontWeight: 'bold',
-  marginBottom: 6,
-} as const
-
-const input = {
-  width: '100%',
-  padding: 12,
-  borderRadius: 12,
-  border: '1px solid #ccc',
-  fontSize: 15,
-} as const
-
 const pillBlack = {
   display: 'inline-block',
   padding: '8px 14px',
@@ -306,15 +278,30 @@ const pillBlack = {
   textDecoration: 'none',
   fontWeight: 'bold',
   fontSize: 14,
-} as const
+}
 
 const pillGreen = {
   display: 'inline-block',
   padding: '8px 14px',
-  background: '#0f766e',
+  background: '#059669',
   color: 'white',
   borderRadius: 999,
   textDecoration: 'none',
   fontWeight: 'bold',
   fontSize: 14,
-} as const
+}
+
+const label = {
+  display: 'block',
+  marginBottom: 6,
+  fontWeight: 'bold',
+}
+
+const input = {
+  width: '100%',
+  padding: 12,
+  borderRadius: 12,
+  border: '1px solid #ccc',
+  fontSize: 15,
+  boxSizing: 'border-box' as const,
+}

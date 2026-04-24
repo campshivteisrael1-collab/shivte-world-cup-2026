@@ -39,8 +39,17 @@ function getMatchTitle(match: MatchRow) {
   return getPhaseTitle(match.phase)
 }
 
+function hasFinalScore(match: MatchRow) {
+  return (
+    match.score_a !== null &&
+    match.score_a !== undefined &&
+    match.score_b !== null &&
+    match.score_b !== undefined
+  )
+}
+
 function getStatusKey(match: MatchRow) {
-  if (match.status === 'submitted') return 'finished'
+  if (hasFinalScore(match)) return 'finished'
   if (match.started_at) return 'live'
   return 'pending'
 }
@@ -123,10 +132,10 @@ function getDurationSeconds(matchTime: string | null | undefined) {
 }
 
 function getDisplayScores(match: MatchRow) {
-  if (match.status === 'submitted') {
+  if (hasFinalScore(match)) {
     return {
-      a: Number(match.score_a ?? 0),
-      b: Number(match.score_b ?? 0),
+      a: Number(match.score_a),
+      b: Number(match.score_b),
     }
   }
 
@@ -149,7 +158,7 @@ function getTeamGroup(team: TeamRow) {
 
 function getTimerText(match: MatchRow, nowMs: number) {
   if (!match.started_at) return null
-  if (match.status === 'submitted') return null
+  if (hasFinalScore(match)) return null
 
   const totalSeconds = getDurationSeconds(match.match_time)
   if (!totalSeconds) return null
@@ -770,7 +779,7 @@ export default function TablaPage() {
     })
 
     matches
-      .filter((m) => m.phase === 'regular' && m.status === 'submitted')
+      .filter((m) => m.phase === 'regular' && hasFinalScore(m))
       .forEach((m) => {
         const a = table[m.team_a_id]
         const b = table[m.team_b_id]

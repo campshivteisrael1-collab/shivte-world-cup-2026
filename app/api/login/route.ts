@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 
 const supabase = createClient(
@@ -8,34 +9,67 @@ const supabase = createClient(
 )
 
 export async function POST(req: Request) {
-  const { username, password } = await req.json()
+  try {
+    const body = await req.json()
 
-  const { data, error } = await supabase.rpc('referee_login', {
-    p_username: username,
-    p_password: password,
-  })
+    const username = String(body.username || '').trim().toLowerCase()
+    const password = String(body.password || '').trim()
 
-  if (error || !data || data.length === 0) {
-    return NextResponse.json({ error: 'Credenciales incorrectas' }, { status: 401 })
+    if (!username || !password) {
+      return NextResponse.json(
+        { error: 'Usuario y contraseña requeridos' },
+        { status: 400 }
+      )
+    }
+
+    const { data: referee, error } = await supabase
+      .from('referees')
+      .select('*')
+      .eq('username', username)
+      .eq('is_active', true)
+      .single()
+
+    if (error || !referee) {
+      return NextResponse.json(
+        { error: 'Usuario no encontrado o inactivo' },
+        { status: 401 }
+      )
+    }
+
+    const passwordOk = await bcrypt.compare(password, referee.password)
+
+    if (!passwordOk) {
+      return NextResponse.json(
+        { error: 'Contraseña incorrecta' },
+        { status: 401 }
+      )
+    }
+
+    const token = crypto.randomUUID()
+
+    await supabase.from('referee_sessions').insert({
+      token,
+      referee_id: referee.id,
+      profile_id: referee.profile_id,
+      expires_at: new Date(Date.now() + 1000 * 60 * 60 * 8).toISOString(),
+    })
+
+    const response = NextResponse.json({
+      success: true,
+      referee,
+    })
+
+    response.cookies.set('session', token, {
+      httpOnly: true,
+      path: '/',
+      sameSite: 'lax',
+    })
+
+    return response
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || 'Error interno' },
+      { status: 500 }
+    )
   }
-
-  const referee = data[0]
-
-  const token = crypto.randomUUID()
-
-  await supabase.from('referee_sessions').insert({
-    token,
-    referee_id: referee.referee_id,
-    profile_id: referee.profile_id,
-    expires_at: new Date(Date.now() + 1000 * 60 * 60 * 8), // 8 horas
-  })
-
-  const response = NextResponse.json({ success: true })
-
-  response.cookies.set('session', token, {
-    httpOnly: true,
-    path: '/',
-  })
-
-  return response
 }

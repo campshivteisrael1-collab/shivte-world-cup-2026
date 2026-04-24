@@ -142,7 +142,19 @@ export default async function MatchDetailPage({
     .eq('id', match.sport_id)
     .single()
 
+  const { data: sportReferees } = await supabase
+    .from('referees')
+    .select('name, username, sport_id, is_active')
+    .eq('sport_id', match.sport_id)
+    .eq('is_active', true)
+    .order('name')
+
   const sportTitle = sport?.display_name || sport?.name || 'Deporte'
+
+  const refereesDisplay =
+    sportReferees && sportReferees.length > 0
+      ? sportReferees.map((r: any) => r.name || r.username).join(', ')
+      : 'Sin asignar'
 
   return (
     <main style={{ padding: 24, fontFamily: 'Arial, sans-serif' }}>
@@ -192,11 +204,9 @@ export default async function MatchDetailPage({
           </p>
         )}
 
-        {sport?.referees_display && (
-          <p style={{ margin: '6px 0' }}>
-            <strong>Árbitros:</strong> {sport.referees_display}
-          </p>
-        )}
+        <p style={{ margin: '6px 0' }}>
+          <strong>Árbitros:</strong> {refereesDisplay}
+        </p>
 
         {sport?.rules && (
           <p style={{ margin: '6px 0' }}>
