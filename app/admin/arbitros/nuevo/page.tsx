@@ -15,7 +15,7 @@ export default function AdminNuevoArbitroPage() {
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [sportId, setSportId] = useState<number | ''>('')
+  const [sportId, setSportId] = useState<number | null>(null)
 
   const [sports, setSports] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -43,7 +43,12 @@ export default function AdminNuevoArbitroPage() {
       const res = await fetch('/api/admin/referee-create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, username, password, sportId }),
+        body: JSON.stringify({
+          name,
+          username,
+          password,
+          sport_id: sportId,
+        }),
       })
 
       const result = await res.json()
@@ -88,7 +93,9 @@ export default function AdminNuevoArbitroPage() {
         ← Admin Árbitros
       </a>
 
-      <h1 style={{ marginTop: 0, marginBottom: 18 }}>Crear árbitro</h1>
+      <h1 style={{ marginTop: 0, marginBottom: 18 }}>
+        Crear árbitro
+      </h1>
 
       <form
         onSubmit={handleSubmit}
@@ -132,24 +139,51 @@ export default function AdminNuevoArbitroPage() {
 
         <div style={{ marginBottom: 14 }}>
           <label style={label}>Deporte que controla</label>
+
           <select
-            value={sportId}
-            onChange={(e) => setSportId(e.target.value ? Number(e.target.value) : '')}
-            required
+            value={sportId ?? ''}
+            onChange={(e) =>
+              setSportId(
+                e.target.value === '' ? null : Number(e.target.value)
+              )
+            }
             style={input}
           >
-            <option value="">Selecciona deporte</option>
+            <option value="">
+              Sin deporte (cuartos / semifinal / final)
+            </option>
+
             {sports.map((sport) => (
               <option key={sport.id} value={sport.id}>
-                {sport.display_name || sport.name || `Deporte ${sport.id}`}
+                {sport.display_name ||
+                  sport.name ||
+                  `Deporte ${sport.id}`}
               </option>
             ))}
           </select>
+
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 13,
+              color: '#666',
+            }}
+          >
+            Déjalo vacío para árbitros de eliminatorias.
+          </div>
         </div>
 
-        {error && <p style={{ color: 'red', fontWeight: 'bold' }}>{error}</p>}
+        {error && (
+          <p style={{ color: 'red', fontWeight: 'bold' }}>
+            {error}
+          </p>
+        )}
 
-        <button type="submit" disabled={loading} style={btnGreen}>
+        <button
+          type="submit"
+          disabled={loading}
+          style={btnGreen}
+        >
           {loading ? 'Guardando...' : 'Guardar árbitro'}
         </button>
       </form>

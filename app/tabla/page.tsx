@@ -39,7 +39,9 @@ function getMatchTitle(match: MatchRow) {
   return getPhaseTitle(match.phase)
 }
 
-function hasFinalScore(match: MatchRow) {
+function hasFinalScore(match: MatchRow | null | undefined) {
+  if (!match) return false
+
   return (
     match.score_a !== null &&
     match.score_a !== undefined &&
@@ -58,7 +60,7 @@ function getStatusLabel(match: MatchRow) {
   const key = getStatusKey(match)
   if (key === 'finished') return 'FINALIZADO'
   if (key === 'live') return 'EN JUEGO'
-  return 'PENDIENTE'
+  return 'POR JUGAR'
 }
 
 function getStatusTheme(match: MatchRow) {
@@ -173,6 +175,27 @@ function getTimerText(match: MatchRow, nowMs: number) {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
+function getWinnerTeam(match: MatchRow | null | undefined) {
+  if (!match) return null
+  if (!hasFinalScore(match)) return null
+
+  const scoreA = Number(match.score_a ?? 0)
+  const scoreB = Number(match.score_b ?? 0)
+
+  if (scoreA > scoreB) return match._team_a_display || null
+  if (scoreB > scoreA) return match._team_b_display || null
+
+  return null
+}
+
+function makePlaceholderTeam(name: string) {
+  return {
+    id: null,
+    name,
+    logo_url: null,
+  }
+}
+
 function LiveBall() {
   return (
     <span
@@ -203,8 +226,8 @@ function MatchCard({
   sportName: string
   nowMs: number
 }) {
-  const teamA = getTeam(teams, match.team_a_id)
-  const teamB = getTeam(teams, match.team_b_id)
+  const teamA = match._team_a_display || getTeam(teams, match.team_a_id)
+  const teamB = match._team_b_display || getTeam(teams, match.team_b_id)
   const score = getDisplayScores(match)
   const theme = getStatusTheme(match)
   const statusKey = getStatusKey(match)
@@ -570,7 +593,11 @@ function FullScheduleTable({
                     return (
                       <td
                         key={sport.id}
-                        style={{ padding: 10, textAlign: 'center', verticalAlign: 'top' }}
+                        style={{
+                          padding: 10,
+                          textAlign: 'center',
+                          verticalAlign: 'top',
+                        }}
                       >
                         —
                       </td>
@@ -765,6 +792,7 @@ export default function TablaPage() {
       table[t.id] = {
         id: t.id,
         team: t.name,
+        name: t.name,
         logo_url: t.logo_url,
         group: getTeamGroup(t),
         PJ: 0,
@@ -823,6 +851,73 @@ export default function TablaPage() {
       return a.team.localeCompare(b.team)
     })
   }, [matches, teams])
+
+  const quarterDisplayMatches = useMemo(() => {
+    const top8 = generalStandings.slice(0, 8)
+
+    const pairs = [
+      [0, 7],
+      [1, 6],
+      [2, 5],
+      [3, 4],
+    ]
+
+    return quarterMatches.map((match, index) => {
+      const pair = pairs[index] || [null, null]
+      const teamA = pair[0] !== null ? top8[pair[0]] : null
+      const teamB = pair[1] !== null ? top8[pair[1]] : null
+
+      return {
+        ...match,
+        _team_a_display:
+          teamA || makePlaceholderTeam(pair[0] !== null ? `${pair[0] + 1}° lugar` : 'Clasificado'),
+        _team_b_display:
+          teamB || makePlaceholderTeam(pair[1] !== null ? `${pair[1] + 1}° lugar` : 'Clasificado'),
+      }
+    })
+  }, [quarterMatches, generalStandings])
+
+  const semiDisplayMatches = useMemo(() => {
+    const qf1Winner = getWinnerTeam(quarterDisplayMatches[0])
+    const qf2Winner = getWinnerTeam(quarterDisplayMatches[1])
+    const qf3Winner = getWinnerTeam(quarterDisplayMatches[2])
+    const qf4Winner = getWinnerTeam(quarterDisplayMatches[3])
+
+    return semiMatches.map((match, index) => {
+      if (index === 0) {
+        return {
+          ...match,
+          _team_a_display: qf1Winner || makePlaceholderTeam('Ganador QF1'),
+          _team_b_display: qf2Winner || makePlaceholderTeam('Ganador QF2'),
+        }
+      }
+
+      if (index === 1) {
+        return {
+          ...match,
+          _team_a_display: qf3Winner || makePlaceholderTeam('Ganador QF3'),
+          _team_b_display: qf4Winner || makePlaceholderTeam('Ganador QF4'),
+        }
+      }
+
+      return {
+        ...match,
+        _team_a_display: makePlaceholderTeam('Ganador cuarto'),
+        _team_b_display: makePlaceholderTeam('Ganador cuarto'),
+      }
+    })
+  }, [semiMatches, quarterDisplayMatches])
+
+  const finalDisplayMatches = useMemo(() => {
+    const sf1Winner = getWinnerTeam(semiDisplayMatches[0])
+    const sf2Winner = getWinnerTeam(semiDisplayMatches[1])
+
+    return finalMatches.map((match) => ({
+      ...match,
+      _team_a_display: sf1Winner || makePlaceholderTeam('Ganador SF1'),
+      _team_b_display: sf2Winner || makePlaceholderTeam('Ganador SF2'),
+    }))
+  }, [finalMatches, semiDisplayMatches])
 
   const regularTimes = useMemo(() => {
     const unique = Array.from(
@@ -989,12 +1084,12 @@ export default function TablaPage() {
         </section>
 
         <section style={{ marginBottom: 28 }}>
-          {quarterMatches.length > 0 && (
+          {quarterDisplayMatches.length > 0 && (
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 10 }}>
                 Cuartos de final
               </div>
-              {quarterMatches.map((match) => (
+              {quarterDisplayMatches.map((match) => (
                 <MatchCard
                   key={match.id}
                   match={match}
@@ -1006,12 +1101,12 @@ export default function TablaPage() {
             </div>
           )}
 
-          {semiMatches.length > 0 && (
+          {semiDisplayMatches.length > 0 && (
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 10 }}>
                 Semifinal
               </div>
-              {semiMatches.map((match) => (
+              {semiDisplayMatches.map((match) => (
                 <MatchCard
                   key={match.id}
                   match={match}
@@ -1023,12 +1118,12 @@ export default function TablaPage() {
             </div>
           )}
 
-          {finalMatches.length > 0 && (
+          {finalDisplayMatches.length > 0 && (
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 10 }}>
                 Final
               </div>
-              {finalMatches.map((match) => (
+              {finalDisplayMatches.map((match) => (
                 <MatchCard
                   key={match.id}
                   match={match}

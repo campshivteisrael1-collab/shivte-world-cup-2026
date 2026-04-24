@@ -20,7 +20,13 @@ function getSportName(sports: any[], id: number) {
 
 function getRefereeName(referees: any[], id: string | null) {
   if (!id) return '—'
-  return referees.find((r) => String(r.profile_id) === String(id))?.name || '—'
+  return (
+    referees.find((r) => String(r.profile_id) === String(id))?.name ||
+    referees.find((r) => String(r.id) === String(id))?.name ||
+    referees.find((r) => String(r.profile_id) === String(id))?.username ||
+    referees.find((r) => String(r.id) === String(id))?.username ||
+    '—'
+  )
 }
 
 function getStatusLabel(match: any) {
@@ -51,6 +57,10 @@ function getPhaseLabel(phase: string) {
   return phase || '—'
 }
 
+function isKnockoutPhase(phase: string) {
+  return phase === 'quarterfinal' || phase === 'semifinal' || phase === 'final'
+}
+
 function TeamMini({ team }: { team: any }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -79,6 +89,7 @@ export default function AdminPartidosPage() {
   const [loading, setLoading] = useState(true)
   const [resettingAll, setResettingAll] = useState(false)
   const [creatingJornada, setCreatingJornada] = useState(false)
+  const [updatingRefereeId, setUpdatingRefereeId] = useState<string | null>(null)
 
   const [teamFilter, setTeamFilter] = useState('')
   const [sportFilter, setSportFilter] = useState('')
@@ -91,12 +102,27 @@ export default function AdminPartidosPage() {
     const { data: m } = await supabase.from('matches').select('*')
     const { data: t } = await supabase.from('teams').select('*').order('name')
     const { data: s } = await supabase.from('Sports').select('*')
-    const { data: r } = await supabase.from('referees').select('*')
+
+    let refereesData: any[] = []
+
+    try {
+      const res = await fetch('/api/admin/referees-list')
+      const json = await res.json()
+
+      refereesData =
+        json.referees ||
+        json.data ||
+        json.items ||
+        []
+    } catch (error) {
+      console.error('Error cargando árbitros desde API:', error)
+      refereesData = []
+    }
 
     setMatches(m || [])
     setTeams(t || [])
     setSports(s || [])
-    setReferees(r || [])
+    setReferees(refereesData)
     setLoading(false)
   }
 
@@ -142,9 +168,66 @@ export default function AdminPartidosPage() {
 
       const cA = String(a.match_code || '')
       const cB = String(b.match_code || '')
-      return cA.localeCompare(cB, undefined, { numeric: true, sensitivity: 'base' })
+      return cA.localeCompare(cB, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      })
     })
   }, [matches, teamFilter, sportFilter, phaseFilter, statusFilter])
+
+  async function handleUpdateMatchReferee(match: any, refereeProfileId: string) {
+    setUpdatingRefereeId(match.id)
+
+    try {
+      const res = await fetch('/api/admin/match-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save',
+          matchId: match.id,
+          payload: {
+            team_a_id: match.team_a_id,
+            team_b_id: match.team_b_id,
+            sport_id: match.sport_id,
+            phase: match.phase,
+            match_time: match.match_time,
+            referee_id: refereeProfileId || null,
+            live_score_a: match.live_score_a ?? 0,
+            live_score_b: match.live_score_b ?? 0,
+            score_a: match.score_a,
+            score_b: match.score_b,
+            status: match.status,
+            started_at: match.started_at,
+            ended_at: match.ended_at,
+            referee_note: match.referee_note,
+          },
+        }),
+      })
+
+      const text = await res.text()
+      let result: any = {}
+
+      try {
+        result = text ? JSON.parse(text) : {}
+      } catch {
+        alert('La ruta /api/admin/match-update no devolvió JSON.')
+        setUpdatingRefereeId(null)
+        return
+      }
+
+      if (!res.ok) {
+        alert(result.error || 'No se pudo actualizar el árbitro')
+        setUpdatingRefereeId(null)
+        return
+      }
+
+      await loadData()
+      setUpdatingRefereeId(null)
+    } catch (err: any) {
+      alert(err?.message || 'No se pudo actualizar el árbitro')
+      setUpdatingRefereeId(null)
+    }
+  }
 
   async function handleAddJornada() {
     const ok = window.confirm(
@@ -166,7 +249,9 @@ export default function AdminPartidosPage() {
       try {
         result = text ? JSON.parse(text) : {}
       } catch {
-        alert('La ruta /api/admin/matches-add-jornada no devolvió JSON. Revisa que exista app/api/admin/matches-add-jornada/route.ts')
+        alert(
+          'La ruta /api/admin/matches-add-jornada no devolvió JSON. Revisa que exista app/api/admin/matches-add-jornada/route.ts'
+        )
         setCreatingJornada(false)
         return
       }
@@ -190,9 +275,11 @@ export default function AdminPartidosPage() {
     const ok1 = window.confirm(
       '¿Seguro que quieres reiniciar TODO el torneo?\n\nSe borrarán marcadores, resultados, temporizadores, estados y notas de TODOS los partidos.'
     )
+
     if (!ok1) return
 
     const confirmation = window.prompt('Para continuar escribe: REINICIAR')
+
     if (!confirmation || confirmation.trim().toUpperCase() !== 'REINICIAR') {
       alert('Acción cancelada.')
       return
@@ -211,7 +298,9 @@ export default function AdminPartidosPage() {
       try {
         result = text ? JSON.parse(text) : {}
       } catch {
-        alert('La ruta /api/admin/matches-reset-all no devolvió JSON. Revisa que exista app/api/admin/matches-reset-all/route.ts')
+        alert(
+          'La ruta /api/admin/matches-reset-all no devolvió JSON. Revisa que exista app/api/admin/matches-reset-all/route.ts'
+        )
         setResettingAll(false)
         return
       }
@@ -431,6 +520,11 @@ export default function AdminPartidosPage() {
           const style = getStatusStyle(m)
           const teamA = getTeam(teams, m.team_a_id)
           const teamB = getTeam(teams, m.team_b_id)
+          const isKnockout = isKnockoutPhase(m.phase)
+
+          const activeReferees = referees.filter(
+            (referee) => referee.is_active !== false
+          )
 
           return (
             <div
@@ -477,6 +571,81 @@ export default function AdminPartidosPage() {
                   <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
                     Árbitro: {getRefereeName(referees, m.referee_id)}
                   </div>
+
+                  {isKnockout && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: 10,
+                        borderRadius: 12,
+                        background: '#f9fafb',
+                        border: '1px solid #e5e7eb',
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: 'block',
+                          marginBottom: 6,
+                          fontWeight: 'bold',
+                          fontSize: 13,
+                        }}
+                      >
+                        Árbitro específico para este partido
+                      </label>
+
+                      <select
+                        value={m.referee_id || ''}
+                        disabled={updatingRefereeId === m.id}
+                        onChange={(e) =>
+                          handleUpdateMatchReferee(m, e.target.value)
+                        }
+                        style={{
+                          width: '100%',
+                          padding: 10,
+                          borderRadius: 10,
+                          border: '1px solid #ccc',
+                          background: 'white',
+                        }}
+                      >
+                        <option value="">Sin asignar</option>
+
+                        {activeReferees.map((referee) => {
+                          const refereeValue = String(
+                            referee.profile_id || referee.id
+                          )
+
+                          return (
+                            <option key={referee.id} value={refereeValue}>
+                              {referee.name ||
+                                referee.username ||
+                                referee.email ||
+                                'Árbitro sin nombre'}
+                            </option>
+                          )
+                        })}
+                      </select>
+
+                      <div style={{ marginTop: 6, fontSize: 12, color: '#666' }}>
+                        Cuartos, semifinales y final se asignan por partido.
+                      </div>
+
+                      {activeReferees.length === 0 && (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: 8,
+                            borderRadius: 10,
+                            background: '#fee2e2',
+                            color: '#991b1b',
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                          }}
+                        >
+                          No hay árbitros cargados desde la API /api/admin/referees-list.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div style={{ marginTop: 8, fontWeight: 'bold', fontSize: 20 }}>
                     {m.live_score_a ?? 0} - {m.live_score_b ?? 0}

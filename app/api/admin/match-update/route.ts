@@ -19,23 +19,46 @@ export async function POST(req: Request) {
     }
 
     if (action === 'save') {
+      if (!payload) {
+        return NextResponse.json(
+          { error: 'payload requerido' },
+          { status: 400 }
+        )
+      }
+
       const updatePayload = {
         team_a_id: Number(payload.team_a_id),
         team_b_id: Number(payload.team_b_id),
         sport_id: Number(payload.sport_id),
         phase: payload.phase || 'regular',
         match_time: payload.match_time || null,
-        referee_id: payload.referee_id || null,
+
+        // IMPORTANTE:
+        // matches.referee_id debe guardar referees.profile_id
+        referee_id:
+          payload.referee_id === '' ||
+          payload.referee_id === null ||
+          payload.referee_id === undefined
+            ? null
+            : String(payload.referee_id),
+
         live_score_a: Number(payload.live_score_a ?? 0),
         live_score_b: Number(payload.live_score_b ?? 0),
+
         score_a:
-          payload.score_a === '' || payload.score_a === null || payload.score_a === undefined
+          payload.score_a === '' ||
+          payload.score_a === null ||
+          payload.score_a === undefined
             ? null
             : Number(payload.score_a),
+
         score_b:
-          payload.score_b === '' || payload.score_b === null || payload.score_b === undefined
+          payload.score_b === '' ||
+          payload.score_b === null ||
+          payload.score_b === undefined
             ? null
             : Number(payload.score_b),
+
         status: payload.status || null,
         started_at: payload.started_at || null,
         ended_at: payload.ended_at || null,
@@ -54,7 +77,10 @@ export async function POST(req: Request) {
         )
       }
 
-      return NextResponse.json({ ok: true, message: 'Guardado correctamente' })
+      return NextResponse.json({
+        ok: true,
+        message: 'Guardado correctamente',
+      })
     }
 
     if (action === 'reset') {
@@ -79,7 +105,10 @@ export async function POST(req: Request) {
         )
       }
 
-      return NextResponse.json({ ok: true, message: 'Partido reiniciado' })
+      return NextResponse.json({
+        ok: true,
+        message: 'Partido reiniciado',
+      })
     }
 
     if (action === 'clearFinal') {
@@ -100,7 +129,10 @@ export async function POST(req: Request) {
         )
       }
 
-      return NextResponse.json({ ok: true, message: 'Resultado final borrado' })
+      return NextResponse.json({
+        ok: true,
+        message: 'Resultado final borrado',
+      })
     }
 
     if (action === 'cancel') {
@@ -118,7 +150,10 @@ export async function POST(req: Request) {
         )
       }
 
-      return NextResponse.json({ ok: true, message: 'Partido cancelado' })
+      return NextResponse.json({
+        ok: true,
+        message: 'Partido cancelado',
+      })
     }
 
     return NextResponse.json(

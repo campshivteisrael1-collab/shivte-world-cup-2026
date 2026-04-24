@@ -622,7 +622,7 @@ export default function LiveMatchControls({
             fontSize: 22,
           }}
         >
-          {loading ? 'Guardando...' : 'GUARDAR RESULTADO'}
+          {loading ? 'Guardando...' : 'FINALIZAR PARTIDO'}
         </button>
 
         {!startedAt && (

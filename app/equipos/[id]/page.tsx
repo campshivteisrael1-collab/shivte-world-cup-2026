@@ -31,6 +31,266 @@ function getMatchTitle(match: any) {
   return match.phase || 'Partido'
 }
 
+function hasFinalScore(match: any) {
+  if (!match) return false
+
+  return (
+    match.score_a !== null &&
+    match.score_a !== undefined &&
+    match.score_b !== null &&
+    match.score_b !== undefined
+  )
+}
+
+function isSubmitted(match: any) {
+  return match?.status === 'submitted' || hasFinalScore(match)
+}
+
+function getTeamGroup(team: any) {
+  return team?.group_name || team?.group || team?.grupo || 'Sin grupo'
+}
+
+function parseTimeRangeToMinutes(value: string | null | undefined) {
+  if (!value) return 999999
+
+  const firstPart = value.split('-')[0]?.trim().toLowerCase() || ''
+  const match = firstPart.match(/(\d{1,2}):(\d{2})\s*(a\.m\.|p\.m\.)/)
+
+  if (!match) return 999999
+
+  let hour = Number(match[1])
+  const minutes = Number(match[2])
+  const meridiem = match[3]
+
+  if (meridiem === 'p.m.' && hour !== 12) hour += 12
+  if (meridiem === 'a.m.' && hour === 12) hour = 0
+
+  return hour * 60 + minutes
+}
+
+function getPhaseOrder(phase: string) {
+  if (phase === 'regular') return 1
+  if (phase === 'quarterfinal') return 2
+  if (phase === 'semifinal') return 3
+  if (phase === 'final') return 4
+  return 99
+}
+
+function sortMatches(a: any, b: any) {
+  const phaseA = getPhaseOrder(a.phase)
+  const phaseB = getPhaseOrder(b.phase)
+
+  if (phaseA !== phaseB) return phaseA - phaseB
+
+  const codeA = String(a.match_code || '')
+  const codeB = String(b.match_code || '')
+
+  if (codeA !== codeB) {
+    return codeA.localeCompare(codeB, undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    })
+  }
+
+  return parseTimeRangeToMinutes(a.match_time) - parseTimeRangeToMinutes(b.match_time)
+}
+
+function makePlaceholderTeam(name: string) {
+  return {
+    id: null,
+    name,
+    team: name,
+    coach_name: null,
+    logo_url: null,
+  }
+}
+
+function calculateGeneralStandings(matches: any[], teams: any[]) {
+  const table: any = {}
+
+  teams.forEach((team) => {
+    table[team.id] = {
+      id: team.id,
+      team: team.name,
+      name: team.name,
+      coach_name: team.coach_name,
+      logo_url: team.logo_url,
+      group: getTeamGroup(team),
+      PJ: 0,
+      PG: 0,
+      PE: 0,
+      PP: 0,
+      PF: 0,
+      PC: 0,
+      DIF: 0,
+      PTS: 0,
+    }
+  })
+
+  matches
+    .filter((match) => match.phase === 'regular' && hasFinalScore(match))
+    .forEach((match) => {
+      const teamA = table[match.team_a_id]
+      const teamB = table[match.team_b_id]
+
+      if (!teamA || !teamB) return
+
+      const scoreA = Number(match.score_a ?? 0)
+      const scoreB = Number(match.score_b ?? 0)
+
+      teamA.PJ++
+      teamB.PJ++
+
+      teamA.PF += scoreA
+      teamA.PC += scoreB
+
+      teamB.PF += scoreB
+      teamB.PC += scoreA
+
+      if (scoreA > scoreB) {
+        teamA.PG++
+        teamA.PTS += 3
+        teamB.PP++
+      } else if (scoreB > scoreA) {
+        teamB.PG++
+        teamB.PTS += 3
+        teamA.PP++
+      } else {
+        teamA.PE++
+        teamB.PE++
+        teamA.PTS++
+        teamB.PTS++
+      }
+    })
+
+  Object.values(table).forEach((team: any) => {
+    team.DIF = team.PF - team.PC
+  })
+
+  return Object.values(table).sort((a: any, b: any) => {
+    if (b.PTS !== a.PTS) return b.PTS - a.PTS
+    if (b.DIF !== a.DIF) return b.DIF - a.DIF
+    if (b.PF !== a.PF) return b.PF - a.PF
+    return a.team.localeCompare(b.team)
+  })
+}
+
+function getWinnerTeam(match: any) {
+  if (!match) return null
+  if (!hasFinalScore(match)) return null
+
+  const scoreA = Number(match.score_a ?? 0)
+  const scoreB = Number(match.score_b ?? 0)
+
+  if (scoreA > scoreB) return match._team_a_display || null
+  if (scoreB > scoreA) return match._team_b_display || null
+
+  return null
+}
+
+function isPhaseComplete(allMatches: any[], phase: string) {
+  const phaseMatches = allMatches.filter((match) => match.phase === phase)
+
+  if (phaseMatches.length === 0) return false
+
+  return phaseMatches.every((match) => isSubmitted(match))
+}
+
+function buildDynamicKnockoutMatches(allMatches: any[], teams: any[]) {
+  const regularComplete = isPhaseComplete(allMatches, 'regular')
+  const quarterComplete = isPhaseComplete(allMatches, 'quarterfinal')
+  const semifinalComplete = isPhaseComplete(allMatches, 'semifinal')
+
+  const standings = calculateGeneralStandings(allMatches, teams)
+  const top8 = standings.slice(0, 8)
+
+  const quarterMatches = allMatches
+    .filter((match) => match.phase === 'quarterfinal')
+    .sort(sortMatches)
+
+  const semiMatches = allMatches
+    .filter((match) => match.phase === 'semifinal')
+    .sort(sortMatches)
+
+  const finalMatches = allMatches
+    .filter((match) => match.phase === 'final')
+    .sort(sortMatches)
+
+  const quarterPairs = [
+    [0, 7],
+    [1, 6],
+    [2, 5],
+    [3, 4],
+  ]
+
+  const quarterDisplayMatches = regularComplete
+    ? quarterMatches.map((match, index) => {
+        const pair = quarterPairs[index] || [null, null]
+        const teamA = pair[0] !== null ? top8[pair[0]] : null
+        const teamB = pair[1] !== null ? top8[pair[1]] : null
+
+        return {
+          ...match,
+          _team_a_display:
+            teamA || makePlaceholderTeam(pair[0] !== null ? `${pair[0] + 1}° lugar` : 'Clasificado'),
+          _team_b_display:
+            teamB || makePlaceholderTeam(pair[1] !== null ? `${pair[1] + 1}° lugar` : 'Clasificado'),
+        }
+      })
+    : []
+
+  const qf1Winner = getWinnerTeam(quarterDisplayMatches[0])
+  const qf2Winner = getWinnerTeam(quarterDisplayMatches[1])
+  const qf3Winner = getWinnerTeam(quarterDisplayMatches[2])
+  const qf4Winner = getWinnerTeam(quarterDisplayMatches[3])
+
+  const semiDisplayMatches = quarterComplete
+    ? semiMatches.map((match, index) => {
+        if (index === 0) {
+          return {
+            ...match,
+            _team_a_display: qf1Winner || makePlaceholderTeam('Ganador QF1'),
+            _team_b_display: qf2Winner || makePlaceholderTeam('Ganador QF2'),
+          }
+        }
+
+        if (index === 1) {
+          return {
+            ...match,
+            _team_a_display: qf3Winner || makePlaceholderTeam('Ganador QF3'),
+            _team_b_display: qf4Winner || makePlaceholderTeam('Ganador QF4'),
+          }
+        }
+
+        return {
+          ...match,
+          _team_a_display: makePlaceholderTeam('Ganador cuarto'),
+          _team_b_display: makePlaceholderTeam('Ganador cuarto'),
+        }
+      })
+    : []
+
+  const sf1Winner = getWinnerTeam(semiDisplayMatches[0])
+  const sf2Winner = getWinnerTeam(semiDisplayMatches[1])
+
+  const finalDisplayMatches = semifinalComplete
+    ? finalMatches.map((match) => ({
+        ...match,
+        _team_a_display: sf1Winner || makePlaceholderTeam('Ganador SF1'),
+        _team_b_display: sf2Winner || makePlaceholderTeam('Ganador SF2'),
+      }))
+    : []
+
+  return [...quarterDisplayMatches, ...semiDisplayMatches, ...finalDisplayMatches]
+}
+
+function doesTeamPlayMatch(match: any, teamId: string) {
+  const teamAId = match._team_a_display?.id ?? match.team_a_id
+  const teamBId = match._team_b_display?.id ?? match.team_b_id
+
+  return String(teamAId) === String(teamId) || String(teamBId) === String(teamId)
+}
+
 function TeamMatchCard({ match }: { match: any }) {
   const [now, setNow] = useState(Date.now())
   const [liveScoreA, setLiveScoreA] = useState(match.live_score_a ?? 0)
@@ -80,14 +340,29 @@ function TeamMatchCard({ match }: { match: any }) {
     return () => clearInterval(interval)
   }, [startedAt, status])
 
-  const hasFinalScore =
+  const isFinalSubmitted = status === 'submitted'
+
+  const hasVisibleFinalScore =
     finalScoreA !== null &&
     finalScoreA !== undefined &&
     finalScoreB !== null &&
     finalScoreB !== undefined
 
-  const scoreA = hasFinalScore ? finalScoreA : startedAt ? liveScoreA : 0
-  const scoreB = hasFinalScore ? finalScoreB : startedAt ? liveScoreB : 0
+  const scoreA = isFinalSubmitted
+    ? finalScoreA ?? liveScoreA ?? 0
+    : hasVisibleFinalScore
+      ? finalScoreA
+      : startedAt
+        ? liveScoreA
+        : 0
+
+  const scoreB = isFinalSubmitted
+    ? finalScoreB ?? liveScoreB ?? 0
+    : hasVisibleFinalScore
+      ? finalScoreB
+      : startedAt
+        ? liveScoreB
+        : 0
 
   const remainingSeconds = useMemo(() => {
     if (!startedAt) return sportDurationMinutes * 60
@@ -99,7 +374,7 @@ function TeamMatchCard({ match }: { match: any }) {
   }, [startedAt, now, sportDurationMinutes])
 
   let bgColor = '#f5f5f5'
-  if (hasFinalScore) bgColor = '#d4edda'
+  if (isFinalSubmitted || hasVisibleFinalScore) bgColor = '#d4edda'
   else if (remainingSeconds <= 0 && startedAt) bgColor = '#ffe5e5'
 
   return (
@@ -151,7 +426,7 @@ function TeamMatchCard({ match }: { match: any }) {
             overflowWrap: 'anywhere',
           }}
         >
-          {match.teamA?.name || 'Equipo'}
+          {match.teamA?.name || match.teamA?.team || 'Equipo'}
         </div>
 
         <div
@@ -173,11 +448,11 @@ function TeamMatchCard({ match }: { match: any }) {
             overflowWrap: 'anywhere',
           }}
         >
-          {match.teamB?.name || 'Equipo'}
+          {match.teamB?.name || match.teamB?.team || 'Equipo'}
         </div>
       </div>
 
-      {startedAt && !hasFinalScore && (
+      {startedAt && !isFinalSubmitted && !hasVisibleFinalScore && (
         <div
           style={{
             marginTop: 8,
@@ -210,21 +485,23 @@ function TeamMatchCard({ match }: { match: any }) {
           display: 'inline-block',
           padding: '4px 10px',
           borderRadius: 999,
-          background: hasFinalScore
-            ? '#d9f7df'
-            : startedAt
-              ? '#dbeafe'
-              : '#fff2cc',
-          color: hasFinalScore
-            ? '#166534'
-            : startedAt
-              ? '#1d4ed8'
-              : '#92400e',
+          background:
+            isFinalSubmitted || hasVisibleFinalScore
+              ? '#d9f7df'
+              : startedAt
+                ? '#dbeafe'
+                : '#fff2cc',
+          color:
+            isFinalSubmitted || hasVisibleFinalScore
+              ? '#166534'
+              : startedAt
+                ? '#1d4ed8'
+                : '#92400e',
         }}
       >
-        {hasFinalScore && 'CAPTURADO'}
-        {!hasFinalScore && startedAt && 'EN JUEGO'}
-        {!hasFinalScore && !startedAt && 'PENDIENTE'}
+        {(isFinalSubmitted || hasVisibleFinalScore) && 'FINALIZADO'}
+        {!isFinalSubmitted && !hasVisibleFinalScore && startedAt && 'EN JUEGO'}
+        {!isFinalSubmitted && !hasVisibleFinalScore && !startedAt && 'POR JUGAR'}
       </div>
 
       <div style={{ marginTop: 14 }}>
@@ -308,7 +585,9 @@ export default function EquipoDetallePage() {
           return
         }
 
-        const currentTeam = (teamsJson.teams || []).find(
+        const allTeams = teamsJson.teams || []
+
+        const currentTeam = allTeams.find(
           (t: any) => String(t.id) === String(id)
         )
 
@@ -318,11 +597,9 @@ export default function EquipoDetallePage() {
           return
         }
 
-        const { data: matchesData, error: matchesError } = await supabase
+        const { data: allMatchesData, error: matchesError } = await supabase
           .from('matches')
           .select('*')
-          .or(`team_a_id.eq.${id},team_b_id.eq.${id}`)
-          .order('match_code')
 
         if (matchesError) {
           setError(matchesError.message || 'No se pudieron cargar los partidos')
@@ -356,7 +633,7 @@ export default function EquipoDetallePage() {
         )
 
         const teamsMap = new Map(
-          (teamsJson.teams || []).map((t: any) => [String(t.id), t])
+          allTeams.map((t: any) => [String(t.id), t])
         )
 
         const sportsMap = new Map(
@@ -375,14 +652,51 @@ export default function EquipoDetallePage() {
           refereesBySport.set(key, current)
         })
 
-        const enrichedMatches = (matchesData || []).map((match: any) => {
+        const allRawMatches = allMatchesData || []
+
+        const dynamicKnockoutMatches = buildDynamicKnockoutMatches(
+          allRawMatches,
+          allTeams
+        )
+
+        const regularMatchesForTeam = allRawMatches.filter((match: any) => {
+          if (match.phase !== 'regular') return false
+
+          return (
+            String(match.team_a_id) === String(id) ||
+            String(match.team_b_id) === String(id)
+          )
+        })
+
+        const knockoutMatchesForTeam = dynamicKnockoutMatches.filter(
+          (match: any) => doesTeamPlayMatch(match, id)
+        )
+
+        const combinedMatches = [
+          ...regularMatchesForTeam,
+          ...knockoutMatchesForTeam,
+        ].filter((match: any, index: number, arr: any[]) => {
+          return arr.findIndex((m: any) => String(m.id) === String(match.id)) === index
+        })
+
+        const enrichedMatches = combinedMatches.sort(sortMatches).map((match: any) => {
           const sportId = Number(match.sport_id)
           const sportReferees = refereesBySport.get(sportId) || []
 
+          const teamA =
+            match._team_a_display ||
+            teamsMap.get(String(match.team_a_id)) ||
+            null
+
+          const teamB =
+            match._team_b_display ||
+            teamsMap.get(String(match.team_b_id)) ||
+            null
+
           return {
             ...match,
-            teamA: teamsMap.get(String(match.team_a_id)) || null,
-            teamB: teamsMap.get(String(match.team_b_id)) || null,
+            teamA,
+            teamB,
             sport: sportsMap.get(sportId) || null,
             referees_display:
               sportReferees.length > 0
@@ -570,7 +884,12 @@ export default function EquipoDetallePage() {
           No hay partidos registrados para este equipo.
         </div>
       ) : (
-        matches.map((match) => <TeamMatchCard key={match.id} match={match} />)
+        matches.map((match) => (
+          <TeamMatchCard
+            key={match.id}
+            match={match}
+          />
+        ))
       )}
     </main>
   )
