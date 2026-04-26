@@ -274,71 +274,40 @@ function formatAddedMinutes(seconds: number) {
 
 function getFinalClockInfo(finalState: FinalStateRow | null | undefined, nowMs: number, isFinished: boolean, match?: MatchRow) {
   const stage = finalState?.stage || 'pending'
-  const matchIsClean =
-    !match?.started_at ||
-    getStatusKey(match) === 'pending' ||
-    match?.status === 'pending' ||
-    finalState?.is_reset === true
+  const frozenRaw =
+    match?.finished_at ||
+    match?.submitted_at ||
+    match?.updated_at ||
+    finalState?.updated_at ||
+    null
+  const effectiveNowMs = isFinished && frozenRaw ? new Date(frozenRaw).getTime() : nowMs
 
-  if (!finalState || stage === 'pending' || matchIsClean) {
-    return {
-      clock: '00:00',
-      addedLabel: null as string | null,
-      stageLabel: 'Por jugar',
-      isAddedTime: false,
-      isRunning: false,
-      halftimeClock: null as string | null,
-    }
+  if (!finalState || stage === 'pending' || finalState?.is_reset === true) {
+    return { clock: '00:00', addedLabel: null as string | null, stageLabel: 'Por jugar', isAddedTime: false, isRunning: false, halftimeClock: null as string | null }
   }
 
   if (stage === 'penalties') {
-    return {
-      clock: 'PENALES',
-      addedLabel: null as string | null,
-      stageLabel: 'Penales',
-      isAddedTime: false,
-      isRunning: false,
-      halftimeClock: null as string | null,
-    }
+    return { clock: 'PENALES', addedLabel: null as string | null, stageLabel: 'Penales', isAddedTime: false, isRunning: false, halftimeClock: null as string | null }
   }
 
   const baseSeconds = getStageBaseSeconds(finalState, stage)
   const offsetSeconds = getStageOffsetSeconds(finalState, stage)
-  const addedSeconds = Math.max(0, Number(finalState?.added_seconds ?? 0))
-  const startRaw =
-    stage === 'halftime'
-      ? finalState?.halftime_started_at || finalState?.stage_started_at
-      : finalState?.stage_started_at
+  const addedSeconds = Number(finalState?.added_seconds ?? 0)
+  const startRaw = stage === 'halftime' ? finalState?.halftime_started_at || finalState?.stage_started_at : finalState?.stage_started_at
 
   if (!startRaw || !baseSeconds) {
-    return {
-      clock: stage === 'halftime' ? 'MEDIO TIEMPO' : formatBroadcastClock(offsetSeconds),
-      addedLabel: null as string | null,
-      stageLabel: getFinalStageLabel(stage),
-      isAddedTime: false,
-      isRunning: false,
-      halftimeClock: stage === 'halftime' ? '05:00' : null,
-    }
+    return { clock: stage === 'halftime' ? 'MEDIO TIEMPO' : formatBroadcastClock(offsetSeconds), addedLabel: null as string | null, stageLabel: getFinalStageLabel(stage), isAddedTime: false, isRunning: false, halftimeClock: stage === 'halftime' ? '05:00' : null }
   }
 
-  const elapsedStage = Math.max(0, Math.floor((nowMs - new Date(startRaw).getTime()) / 1000))
+  const elapsedStage = Math.max(0, Math.floor((effectiveNowMs - new Date(startRaw).getTime()) / 1000))
 
   if (stage === 'halftime') {
     const remaining = Math.max(0, baseSeconds - elapsedStage)
-    return {
-      clock: 'MEDIO TIEMPO',
-      addedLabel: null as string | null,
-      stageLabel: 'Medio tiempo',
-      isAddedTime: false,
-      isRunning: remaining > 0 && !isFinished,
-      halftimeClock: formatBroadcastClock(remaining),
-    }
+    return { clock: 'MEDIO TIEMPO', addedLabel: null as string | null, stageLabel: 'Medio tiempo', isAddedTime: false, isRunning: remaining > 0 && !isFinished, halftimeClock: formatBroadcastClock(remaining) }
   }
 
   const stageLimit = baseSeconds + addedSeconds
-  const cappedStageSeconds = isFinished
-    ? stageLimit
-    : Math.min(elapsedStage, stageLimit)
+  const cappedStageSeconds = isFinished ? Math.min(elapsedStage, stageLimit) : Math.min(elapsedStage, stageLimit)
   const isAddedTime = cappedStageSeconds >= baseSeconds && addedSeconds > 0
   const isStillRunning = !isFinished && elapsedStage < stageLimit
 
@@ -350,28 +319,6 @@ function getFinalClockInfo(finalState: FinalStateRow | null | undefined, nowMs: 
     isRunning: isStillRunning,
     halftimeClock: null as string | null,
   }
-}
-
-function parseMinuteValue(value: string | null | undefined) {
-  if (!value) return null
-  const match = String(value).match(/(\d+)/)
-  if (!match) return null
-  const minute = Number(match[1])
-  return Number.isFinite(minute) ? minute : null
-}
-
-function getEventDisplayMinute(event: MatchEventRow, finalState: FinalStateRow | null | undefined) {
-  const minute = parseMinuteValue(event.minute)
-  if (minute === null) return ''
-
-  const offsetMinutes = Math.floor(getStageOffsetSeconds(finalState, event.stage) / 60)
-  const baseMinutes = Math.floor(getStageBaseSeconds(finalState, event.stage) / 60)
-
-  if (offsetMinutes > 0 && minute <= baseMinutes) {
-    return `${offsetMinutes + minute}'`
-  }
-
-  return `${minute}'`
 }
 
 function getPublicFinalEvents(events: MatchEventRow[], match: MatchRow, finalState: FinalStateRow | null | undefined) {
@@ -398,89 +345,21 @@ function getWinnerName(match: MatchRow, teamA: any, teamB: any, score: { a: numb
 }
 
 function getTeamCoach(team: any) {
-  const coach =
-    team?.coach_name ||
-    team?.dt_name ||
-    team?.director_tecnico ||
-    team?.technical_director ||
-    team?.manager_name ||
-    team?.coach ||
-    team?.dt ||
-    team?.entrenador ||
-    team?.entrenador_name ||
-    team?.responsable ||
-    team?.head_coach
-
-  if (typeof coach === 'object') return getReadableName(coach) || 'DT pendiente'
-  return coach || 'DT pendiente'
+  return team?.coach_name || team?.dt_name || team?.manager_name || team?.coach || team?.dt || 'DT pendiente'
 }
 
 function getTeamPlayers(team: any) {
-  const raw =
-    team?.players ||
-    team?.player_names ||
-    team?.roster ||
-    team?.plantel ||
-    team?.jugadores ||
-    team?.players_text ||
-    team?.jugadores_text ||
-    team?.roster_text ||
-    team?.plantel_text
-
-  if (Array.isArray(raw)) {
-    return raw
-      .map((p) => (typeof p === 'object' ? getReadableName(p) : String(p)))
-      .map((p) => p.trim())
-      .filter(Boolean)
-  }
-
+  const raw = team?.players || team?.player_names || team?.roster || team?.plantel || team?.jugadores
+  if (Array.isArray(raw)) return raw.map((p) => String(p)).filter(Boolean)
   if (typeof raw === 'string') return raw.split(/\n|,|;/).map((p) => p.trim()).filter(Boolean)
   return []
 }
 
-function getReadableName(row: any) {
-  if (!row) return ''
-  return (
-    row.name ||
-    row.full_name ||
-    row.display_name ||
-    row.nombre ||
-    row.referee_name ||
-    row.arbitro ||
-    row.email ||
-    ''
-  )
-}
-
-function getMatchReferees(match: MatchRow, referees: any[] = []) {
-  const raw =
-    match?.referee_names ||
-    match?.referees ||
-    match?.referee_name ||
-    match?.arbitros ||
-    match?.arbitro
-
-  if (Array.isArray(raw)) {
-    const values = raw
-      .map((r) => (typeof r === 'object' ? getReadableName(r) : String(r)))
-      .filter(Boolean)
-    if (values.length > 0) return values
-  }
-
-  if (typeof raw === 'string' && raw.trim()) {
-    return raw.split(/\n|,|;/).map((r) => r.trim()).filter(Boolean)
-  }
-
-  const refereeId = match?.referee_id || match?.arbitro_id || match?.refereeId
-  const referee = referees.find((r) => {
-    const ids = [r?.id, r?.referee_id, r?.profile_id, r?.user_id].map((value) => String(value || ''))
-    return ids.includes(String(refereeId || ''))
-  })
-
-  const refereeName = getReadableName(referee)
-  if (refereeName) return [refereeName]
-
-  return refereeId ? [`Árbitro asignado`] : ['Árbitro pendiente']
+function getMatchReferees(match: MatchRow) {
+  const raw = match?.referee_names || match?.referees || match?.referee_name || match?.arbitros || match?.arbitro
+  if (Array.isArray(raw)) return raw.map((r) => String(r)).filter(Boolean)
+  if (typeof raw === 'string') return raw.split(/\n|,|;/).map((r) => r.trim()).filter(Boolean)
+  return match?.referee_id ? [`Árbitro ID ${match.referee_id}`] : ['Árbitro pendiente']
 }
 
 
@@ -713,7 +592,6 @@ function GrandFinalMatchCard({
   nowMs,
   events,
   finalState,
-  refereesData,
 }: {
   match: MatchRow
   teams: TeamRow[]
@@ -721,7 +599,6 @@ function GrandFinalMatchCard({
   nowMs: number
   events: MatchEventRow[]
   finalState: FinalStateRow | null
-  refereesData: any[]
 }) {
   const teamA = match._team_a_display || getTeam(teams, match.team_a_id)
   const teamB = match._team_b_display || getTeam(teams, match.team_b_id)
@@ -768,7 +645,7 @@ function GrandFinalMatchCard({
   )
 
   const winnerName = getWinnerName(match, teamA, teamB, score)
-  const referees = getMatchReferees(match, refereesData)
+  const referees = getMatchReferees(match)
   const teamACoach = getTeamCoach(teamA)
   const teamBCoach = getTeamCoach(teamB)
   const teamAPlayers = getTeamPlayers(teamA)
@@ -861,9 +738,8 @@ function GrandFinalMatchCard({
 
         {isFinished ? (
           <div className="final-winner-banner">
-            <div className="final-winner-small">🏆 CAMPEÓN SHIVTE WORLD CUP 2026 🏆</div>
+            <div className="final-winner-small">🏆 CAMPEÓN 🏆</div>
             <div className="final-winner-name">{winnerName}</div>
-            <div className="final-winner-confetti">★ ★ ★ GRAN FINAL ★ ★ ★</div>
           </div>
         ) : null}
       </div>
@@ -917,7 +793,7 @@ function GrandFinalMatchCard({
           {goalsA.length > 0 ? (
             goalsA.map((event) => (
               <div key={event.id} className="final-goal-line">
-                <span>{getEventDisplayMinute(event, finalState) || clockInfo.clock}</span>
+                <span>{event.minute || clockInfo.clock}</span>
                 <strong>{event.player || 'Jugador'}</strong>
               </div>
             ))
@@ -931,7 +807,7 @@ function GrandFinalMatchCard({
           {goalsB.length > 0 ? (
             goalsB.map((event) => (
               <div key={event.id} className="final-goal-line">
-                <span>{getEventDisplayMinute(event, finalState) || clockInfo.clock}</span>
+                <span>{event.minute || clockInfo.clock}</span>
                 <strong>{event.player || 'Jugador'}</strong>
               </div>
             ))
@@ -964,7 +840,7 @@ function GrandFinalMatchCard({
 
                   <div>
                     <div className="final-timeline-title">
-                      {getEventDisplayMinute(event, finalState) ? `${getEventDisplayMinute(event, finalState)} · ` : ''}{getFinalEventLabel(event.event_type)} · {teamName || 'General'}
+                      {event.minute ? `${event.minute} · ` : ''}{getFinalEventLabel(event.event_type)} · {teamName || 'General'}
                     </div>
                     <div className="final-timeline-meta">
                       {getFinalStageLabel(event.stage)}{event.player ? ` · ${event.player}` : ''}
@@ -988,7 +864,7 @@ function GrandFinalMatchCard({
           <div className="final-summary-list">
             {[...cards, ...incidents].slice(0, 10).map((event) => (
               <div key={`summary-${event.id}`} className="final-info-line">
-                {getFinalEventIcon(event.event_type)} {getEventDisplayMinute(event, finalState) ? `${getEventDisplayMinute(event, finalState)} · ` : ''}
+                {getFinalEventIcon(event.event_type)} {event.minute ? `${event.minute} · ` : ''}
                 {getFinalEventLabel(event.event_type)} · {event.team_name || 'General'}
                 {event.player ? ` · ${event.player}` : ''}
               </div>
@@ -1308,7 +1184,6 @@ export default function TablaPage() {
   const [activeView, setActiveView] = useState<TablaView>('jornadas')
   const [finalEventsByMatch, setFinalEventsByMatch] = useState<Record<string, MatchEventRow[]>>({})
   const [finalStateByMatch, setFinalStateByMatch] = useState<Record<string, FinalStateRow>>({})
-  const [refereesData, setRefereesData] = useState<any[]>([])
 
   useEffect(() => {
     let mounted = true
@@ -1317,7 +1192,6 @@ export default function TablaPage() {
       const { data: m } = await supabase.from('matches').select('*')
       const { data: t } = await supabase.from('teams').select('*')
       const { data: s } = await supabase.from('Sports').select('*')
-      const { data: refs } = await supabase.from('referees').select('*')
       const { data: ev } = await supabase
         .from('match_events')
         .select('*')
@@ -1344,7 +1218,6 @@ export default function TablaPage() {
       setMatches(m || [])
       setTeams(t || [])
       setSports(s || [])
-      setRefereesData(refs || [])
       setFinalEventsByMatch(groupedEvents)
       setFinalStateByMatch(groupedStates)
       setLoading(false)
@@ -1683,7 +1556,6 @@ export default function TablaPage() {
         .final-winner-banner { margin-top: 18px; border-radius: 22px; padding: 18px; text-align: center; background: linear-gradient(135deg, #facc15, #f59e0b); color: #111827; box-shadow: 0 14px 26px rgba(245,158,11,0.24); }
         .final-winner-small { font-size: 13px; font-weight: 1000; letter-spacing: 3px; }
         .final-winner-name { margin-top: 4px; font-size: clamp(28px, 6vw, 56px); font-weight: 1000; line-height: 1; }
-        .final-winner-confetti { margin-top: 10px; font-size: 13px; font-weight: 1000; letter-spacing: 3px; opacity: 0.82; }
         .final-info-grid, .final-goals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
         .final-details-dropdown { margin-bottom: 14px; border-radius: 24px; border: 1px solid #e5e7eb; background: rgba(255,255,255,0.92); box-shadow: 0 10px 24px rgba(15,23,42,0.08); overflow: hidden; }
         .final-details-dropdown > summary { cursor: pointer; padding: 18px 20px; font-weight: 1000; font-size: 18px; list-style: none; }
@@ -1706,7 +1578,7 @@ export default function TablaPage() {
         .final-timeline-title { font-size: 14px; font-weight: 1000; color: #111827; line-height: 1.25; }
         .final-timeline-meta, .final-timeline-note { font-size: 12px; color: #64748b; font-weight: 800; margin-top: 3px; line-height: 1.35; }
         @keyframes goalLogoPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-        @media (max-width: 720px) { .final-scoreboard { padding: 14px; border-radius: 28px; } .final-scoreboard-top { align-items: flex-start; } .final-scoreboard-kicker { font-size: 11px; letter-spacing: 2px; } .final-score-grid { gap: 8px; grid-template-columns: minmax(0, 1fr) minmax(108px, auto) minmax(0, 1fr); } .final-center-block { min-width: 108px; } .final-score { letter-spacing: -3px; font-size: clamp(48px, 17vw, 70px); } .final-team-name { font-size: clamp(17px, 6vw, 24px); } .final-team-logo { width: 58px; height: 58px; } .final-clock-row { padding: 7px 10px; gap: 6px; } .final-info-grid, .final-goals-grid { grid-template-columns: 1fr; } .final-info-grid-players { display: grid; } .final-panel-box-pro { padding: 14px; } }
+        @media (max-width: 720px) { .final-scoreboard { padding: 16px; border-radius: 28px; } .final-scoreboard-top { align-items: flex-start; } .final-score-grid { gap: 10px; } .final-center-block { min-width: 118px; } .final-score { letter-spacing: -3px; } .final-team-coach { display: none; } .final-info-grid, .final-goals-grid { grid-template-columns: 1fr; } .final-info-grid-players { display: none; } }
         @media (min-width: 900px) { .final-broadcast-wrap { max-width: 1080px; margin: 0 auto; } }
 
       `}</style>
@@ -1948,7 +1820,6 @@ export default function TablaPage() {
                   nowMs={nowMs}
                   events={finalEventsByMatch[String(match.id)] || []}
                   finalState={finalStateByMatch[String(match.id)] || null}
-                  refereesData={refereesData}
                 />
               ))
             ) : (
