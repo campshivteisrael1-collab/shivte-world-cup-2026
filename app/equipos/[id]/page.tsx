@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import {
+  buildOfficialKnockoutMatches,
+  hasFinalScore,
+  sortMatches,
+} from '../../../lib/knockout'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,161 +36,8 @@ function getMatchTitle(match: any) {
   return match.phase || 'Partido'
 }
 
-function hasFinalScore(match: any) {
-  if (!match) return false
-
-  return (
-    match.score_a !== null &&
-    match.score_a !== undefined &&
-    match.score_b !== null &&
-    match.score_b !== undefined
-  )
-}
-
 function isSubmitted(match: any) {
   return match?.status === 'submitted' || hasFinalScore(match)
-}
-
-function getTeamGroup(team: any) {
-  return team?.group_name || team?.group || team?.grupo || 'Sin grupo'
-}
-
-function parseTimeRangeToMinutes(value: string | null | undefined) {
-  if (!value) return 999999
-
-  const firstPart = value.split('-')[0]?.trim().toLowerCase() || ''
-  const match = firstPart.match(/(\d{1,2}):(\d{2})\s*(a\.m\.|p\.m\.)/)
-
-  if (!match) return 999999
-
-  let hour = Number(match[1])
-  const minutes = Number(match[2])
-  const meridiem = match[3]
-
-  if (meridiem === 'p.m.' && hour !== 12) hour += 12
-  if (meridiem === 'a.m.' && hour === 12) hour = 0
-
-  return hour * 60 + minutes
-}
-
-function getPhaseOrder(phase: string) {
-  if (phase === 'regular') return 1
-  if (phase === 'quarterfinal') return 2
-  if (phase === 'semifinal') return 3
-  if (phase === 'final') return 4
-  return 99
-}
-
-function sortMatches(a: any, b: any) {
-  const phaseA = getPhaseOrder(a.phase)
-  const phaseB = getPhaseOrder(b.phase)
-
-  if (phaseA !== phaseB) return phaseA - phaseB
-
-  const codeA = String(a.match_code || '')
-  const codeB = String(b.match_code || '')
-
-  if (codeA !== codeB) {
-    return codeA.localeCompare(codeB, undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    })
-  }
-
-  return parseTimeRangeToMinutes(a.match_time) - parseTimeRangeToMinutes(b.match_time)
-}
-
-function makePlaceholderTeam(name: string) {
-  return {
-    id: null,
-    name,
-    team: name,
-    coach_name: null,
-    logo_url: null,
-  }
-}
-
-function calculateGeneralStandings(matches: any[], teams: any[]) {
-  const table: any = {}
-
-  teams.forEach((team) => {
-    table[team.id] = {
-      id: team.id,
-      team: team.name,
-      name: team.name,
-      coach_name: team.coach_name,
-      logo_url: team.logo_url,
-      group: getTeamGroup(team),
-      PJ: 0,
-      PG: 0,
-      PE: 0,
-      PP: 0,
-      PF: 0,
-      PC: 0,
-      DIF: 0,
-      PTS: 0,
-    }
-  })
-
-  matches
-    .filter((match) => match.phase === 'regular' && hasFinalScore(match))
-    .forEach((match) => {
-      const teamA = table[match.team_a_id]
-      const teamB = table[match.team_b_id]
-
-      if (!teamA || !teamB) return
-
-      const scoreA = Number(match.score_a ?? 0)
-      const scoreB = Number(match.score_b ?? 0)
-
-      teamA.PJ++
-      teamB.PJ++
-
-      teamA.PF += scoreA
-      teamA.PC += scoreB
-
-      teamB.PF += scoreB
-      teamB.PC += scoreA
-
-      if (scoreA > scoreB) {
-        teamA.PG++
-        teamA.PTS += 3
-        teamB.PP++
-      } else if (scoreB > scoreA) {
-        teamB.PG++
-        teamB.PTS += 3
-        teamA.PP++
-      } else {
-        teamA.PE++
-        teamB.PE++
-        teamA.PTS++
-        teamB.PTS++
-      }
-    })
-
-  Object.values(table).forEach((team: any) => {
-    team.DIF = team.PF - team.PC
-  })
-
-  return Object.values(table).sort((a: any, b: any) => {
-    if (b.PTS !== a.PTS) return b.PTS - a.PTS
-    if (b.DIF !== a.DIF) return b.DIF - a.DIF
-    if (b.PF !== a.PF) return b.PF - a.PF
-    return a.team.localeCompare(b.team)
-  })
-}
-
-function getWinnerTeam(match: any) {
-  if (!match) return null
-  if (!hasFinalScore(match)) return null
-
-  const scoreA = Number(match.score_a ?? 0)
-  const scoreB = Number(match.score_b ?? 0)
-
-  if (scoreA > scoreB) return match._team_a_display || null
-  if (scoreB > scoreA) return match._team_b_display || null
-
-  return null
 }
 
 function isPhaseComplete(allMatches: any[], phase: string) {
@@ -196,99 +48,29 @@ function isPhaseComplete(allMatches: any[], phase: string) {
   return phaseMatches.every((match) => isSubmitted(match))
 }
 
-function buildDynamicKnockoutMatches(allMatches: any[], teams: any[]) {
-  const regularComplete = isPhaseComplete(allMatches, 'regular')
-  const quarterComplete = isPhaseComplete(allMatches, 'quarterfinal')
-  const semifinalComplete = isPhaseComplete(allMatches, 'semifinal')
-
-  const standings = calculateGeneralStandings(allMatches, teams)
-  const top8 = standings.slice(0, 8)
-
-  const quarterMatches = allMatches
-    .filter((match) => match.phase === 'quarterfinal')
-    .sort(sortMatches)
-
-  const semiMatches = allMatches
-    .filter((match) => match.phase === 'semifinal')
-    .sort(sortMatches)
-
-  const finalMatches = allMatches
-    .filter((match) => match.phase === 'final')
-    .sort(sortMatches)
-
-  const quarterPairs = [
-    [0, 7],
-    [1, 6],
-    [2, 5],
-    [3, 4],
-  ]
-
-  const quarterDisplayMatches = regularComplete
-    ? quarterMatches.map((match, index) => {
-        const pair = quarterPairs[index] || [null, null]
-        const teamA = pair[0] !== null ? top8[pair[0]] : null
-        const teamB = pair[1] !== null ? top8[pair[1]] : null
-
-        return {
-          ...match,
-          _team_a_display:
-            teamA || makePlaceholderTeam(pair[0] !== null ? `${pair[0] + 1}° lugar` : 'Clasificado'),
-          _team_b_display:
-            teamB || makePlaceholderTeam(pair[1] !== null ? `${pair[1] + 1}° lugar` : 'Clasificado'),
-        }
-      })
-    : []
-
-  const qf1Winner = getWinnerTeam(quarterDisplayMatches[0])
-  const qf2Winner = getWinnerTeam(quarterDisplayMatches[1])
-  const qf3Winner = getWinnerTeam(quarterDisplayMatches[2])
-  const qf4Winner = getWinnerTeam(quarterDisplayMatches[3])
-
-  const semiDisplayMatches = quarterComplete
-    ? semiMatches.map((match, index) => {
-        if (index === 0) {
-          return {
-            ...match,
-            _team_a_display: qf1Winner || makePlaceholderTeam('Ganador QF1'),
-            _team_b_display: qf2Winner || makePlaceholderTeam('Ganador QF2'),
-          }
-        }
-
-        if (index === 1) {
-          return {
-            ...match,
-            _team_a_display: qf3Winner || makePlaceholderTeam('Ganador QF3'),
-            _team_b_display: qf4Winner || makePlaceholderTeam('Ganador QF4'),
-          }
-        }
-
-        return {
-          ...match,
-          _team_a_display: makePlaceholderTeam('Ganador cuarto'),
-          _team_b_display: makePlaceholderTeam('Ganador cuarto'),
-        }
-      })
-    : []
-
-  const sf1Winner = getWinnerTeam(semiDisplayMatches[0])
-  const sf2Winner = getWinnerTeam(semiDisplayMatches[1])
-
-  const finalDisplayMatches = semifinalComplete
-    ? finalMatches.map((match) => ({
-        ...match,
-        _team_a_display: sf1Winner || makePlaceholderTeam('Ganador SF1'),
-        _team_b_display: sf2Winner || makePlaceholderTeam('Ganador SF2'),
-      }))
-    : []
-
-  return [...quarterDisplayMatches, ...semiDisplayMatches, ...finalDisplayMatches]
-}
-
 function doesTeamPlayMatch(match: any, teamId: string) {
-  const teamAId = match._team_a_display?.id ?? match.team_a_id
-  const teamBId = match._team_b_display?.id ?? match.team_b_id
+  if (
+    match.phase === 'quarterfinal' ||
+    match.phase === 'semifinal' ||
+    match.phase === 'final'
+  ) {
+    const teamAId = match._team_a_display?.id
+    const teamBId = match._team_b_display?.id
 
-  return String(teamAId) === String(teamId) || String(teamBId) === String(teamId)
+    return (
+      (teamAId !== null &&
+        teamAId !== undefined &&
+        String(teamAId) === String(teamId)) ||
+      (teamBId !== null &&
+        teamBId !== undefined &&
+        String(teamBId) === String(teamId))
+    )
+  }
+
+  return (
+    String(match.team_a_id) === String(teamId) ||
+    String(match.team_b_id) === String(teamId)
+  )
 }
 
 function TeamMatchCard({ match }: { match: any }) {
@@ -304,6 +86,23 @@ function TeamMatchCard({ match }: { match: any }) {
   const sportDurationMinutes = Number(
     match.sport?.duration || match.sport?.duration_minutes || 20
   )
+
+  useEffect(() => {
+    setLiveScoreA(match.live_score_a ?? 0)
+    setLiveScoreB(match.live_score_b ?? 0)
+    setFinalScoreA(match.score_a)
+    setFinalScoreB(match.score_b)
+    setStatus(match.status)
+    setStartedAt(match.started_at)
+  }, [
+    match.id,
+    match.live_score_a,
+    match.live_score_b,
+    match.score_a,
+    match.score_b,
+    match.status,
+    match.started_at,
+  ])
 
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -569,9 +368,14 @@ export default function EquipoDetallePage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    async function load() {
+    let mounted = true
+
+    async function load(options?: { silent?: boolean }) {
       try {
-        setLoading(true)
+        if (!options?.silent) {
+          setLoading(true)
+        }
+
         setError('')
 
         const teamsRes = await fetch('/api/admin/teams-list', {
@@ -580,6 +384,7 @@ export default function EquipoDetallePage() {
         const teamsJson = await teamsRes.json()
 
         if (!teamsRes.ok) {
+          if (!mounted) return
           setError(teamsJson.error || 'No se pudo cargar el equipo')
           setLoading(false)
           return
@@ -592,6 +397,7 @@ export default function EquipoDetallePage() {
         )
 
         if (!currentTeam) {
+          if (!mounted) return
           setError('Equipo no encontrado')
           setLoading(false)
           return
@@ -602,6 +408,7 @@ export default function EquipoDetallePage() {
           .select('*')
 
         if (matchesError) {
+          if (!mounted) return
           setError(matchesError.message || 'No se pudieron cargar los partidos')
           setLoading(false)
           return
@@ -612,6 +419,7 @@ export default function EquipoDetallePage() {
           .select('*')
 
         if (sportsError) {
+          if (!mounted) return
           setError(sportsError.message || 'No se pudieron cargar los deportes')
           setLoading(false)
           return
@@ -623,6 +431,7 @@ export default function EquipoDetallePage() {
         const refereesJson = await refereesRes.json()
 
         if (!refereesRes.ok) {
+          if (!mounted) return
           setError(refereesJson?.error || 'No se pudieron cargar los árbitros')
           setLoading(false)
           return
@@ -653,8 +462,9 @@ export default function EquipoDetallePage() {
         })
 
         const allRawMatches = allMatchesData || []
+        const regularComplete = isPhaseComplete(allRawMatches, 'regular')
 
-        const dynamicKnockoutMatches = buildDynamicKnockoutMatches(
+        const { knockoutMatches } = buildOfficialKnockoutMatches(
           allRawMatches,
           allTeams
         )
@@ -668,9 +478,23 @@ export default function EquipoDetallePage() {
           )
         })
 
-        const knockoutMatchesForTeam = dynamicKnockoutMatches.filter(
-          (match: any) => doesTeamPlayMatch(match, id)
-        )
+        const knockoutMatchesForTeam = knockoutMatches.filter((match: any) => {
+          if (!doesTeamPlayMatch(match, id)) return false
+
+          if (match.phase === 'quarterfinal') {
+            return regularComplete
+          }
+
+          if (match.phase === 'semifinal') {
+            return true
+          }
+
+          if (match.phase === 'final') {
+            return true
+          }
+
+          return false
+        })
 
         const combinedMatches = [
           ...regularMatchesForTeam,
@@ -705,16 +529,34 @@ export default function EquipoDetallePage() {
           }
         })
 
+        if (!mounted) return
+
         setTeam(currentTeam)
         setMatches(enrichedMatches)
         setLoading(false)
       } catch (e: any) {
+        if (!mounted) return
         setError(e?.message || 'No se pudo cargar el equipo')
         setLoading(false)
       }
     }
 
-    if (id) load()
+    if (id) {
+      load()
+
+      const interval = setInterval(() => {
+        load({ silent: true })
+      }, 2000)
+
+      return () => {
+        mounted = false
+        clearInterval(interval)
+      }
+    }
+
+    return () => {
+      mounted = false
+    }
   }, [id])
 
   if (loading) {

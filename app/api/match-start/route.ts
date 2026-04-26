@@ -26,16 +26,48 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Sesión inválida' }, { status: 401 })
     }
 
+    const refereeId = session.referee_id
+
+    if (!refereeId) {
+      return NextResponse.json(
+        { error: 'Sesión inválida: referee_id requerido' },
+        { status: 401 }
+      )
+    }
+
     const { matchId } = await req.json()
 
     const { data: refereeMatches } = await supabase
       .from('matches')
-      .select('id, status, match_code')
-      .eq('referee_id', session.profile_id)
+      .select('id, status, match_code, phase, match_time, score_a, score_b')
+      .eq('referee_id', refereeId)
       .order('match_code', { ascending: true })
 
+    const sortedRefereeMatches = (refereeMatches || []).sort((a: any, b: any) => {
+      const phaseOrder: any = {
+        regular: 1,
+        quarterfinal: 2,
+        semifinal: 3,
+        final: 4,
+      }
+
+      const phaseA = phaseOrder[a.phase] || 99
+      const phaseB = phaseOrder[b.phase] || 99
+
+      if (phaseA !== phaseB) return phaseA - phaseB
+
+      return String(a.match_code || '').localeCompare(String(b.match_code || ''), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      })
+    })
+
     const nextPendingId =
-      refereeMatches?.find((m: any) => m.status !== 'submitted')?.id ?? null
+      sortedRefereeMatches.find(
+        (m: any) =>
+          m.status !== 'submitted' &&
+          (m.score_a === null || m.score_a === undefined || m.score_b === null || m.score_b === undefined)
+      )?.id ?? null
 
     const { data: match, error: matchError } = await supabase
       .from('matches')
@@ -47,7 +79,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
     }
 
-    if (match.referee_id !== session.profile_id) {
+    if (String(match.referee_id) !== String(refereeId)) {
       return NextResponse.json({ error: 'No puedes iniciar este partido' }, { status: 403 })
     }
 

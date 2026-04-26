@@ -7,12 +7,14 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-function getWinnerTeamId(match: any) {
+function getWinnerTeamId(match: any, forcedWinnerTeamId?: any) {
   const scoreA = Number(match.live_score_a ?? 0)
   const scoreB = Number(match.live_score_b ?? 0)
 
   if (scoreA > scoreB) return match.team_a_id
   if (scoreB > scoreA) return match.team_b_id
+
+  if (forcedWinnerTeamId) return Number(forcedWinnerTeamId)
 
   return null
 }
@@ -141,16 +143,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Sesión inválida' }, { status: 401 })
     }
 
-    const { matchId, refereeNote } = await req.json()
+    const refereeId = session.referee_id
+
+    if (!refereeId) {
+      return NextResponse.json(
+        { error: 'Sesión inválida: referee_id requerido' },
+        { status: 401 }
+      )
+    }
+
+    const body = await req.json()
+    const { matchId, refereeNote, winnerTeamId, resolution } = body
 
     const { data: refereeMatches } = await supabase
       .from('matches')
-      .select('id, status, match_code')
-      .eq('referee_id', session.profile_id)
+      .select('id, status, match_code, phase, match_time, score_a, score_b')
+      .eq('referee_id', refereeId)
       .order('match_code', { ascending: true })
 
+    const sortedRefereeMatches = (refereeMatches || []).sort(sortKnockoutMatches)
+
     const nextPendingId =
-      refereeMatches?.find((m: any) => m.status !== 'submitted')?.id ?? null
+      sortedRefereeMatches.find(
+        (m: any) =>
+          m.status !== 'submitted' &&
+          (
+            m.score_a === null ||
+            m.score_a === undefined ||
+            m.score_b === null ||
+            m.score_b === undefined
+          )
+      )?.id ?? null
 
     const { data: match, error: matchError } = await supabase
       .from('matches')
@@ -164,7 +187,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
     }
 
-    if (match.referee_id !== session.profile_id) {
+    if (String(match.referee_id) !== String(refereeId)) {
       return NextResponse.json({ error: 'No puedes editar este partido' }, { status: 403 })
     }
 
@@ -189,27 +212,47 @@ export async function POST(req: Request) {
       )
     }
 
-    const winnerTeamId = getWinnerTeamId(match)
+    const finalScoreA = Number(match.live_score_a ?? 0)
+    const finalScoreB = Number(match.live_score_b ?? 0)
 
-    if (
-      (match.phase === 'quarterfinal' ||
-        match.phase === 'semifinal' ||
-        match.phase === 'final') &&
-      !winnerTeamId
-    ) {
+    const isKnockout =
+      match.phase === 'quarterfinal' ||
+      match.phase === 'semifinal' ||
+      match.phase === 'final'
+
+    const winner = getWinnerTeamId(match, winnerTeamId)
+
+    if (isKnockout && !winner) {
       return NextResponse.json(
         { error: 'En eliminatorias no puede haber empate. Define un ganador.' },
         { status: 400 }
       )
     }
 
+    const cleanResolution =
+      resolution === 'extra_time' || resolution === 'penalties'
+        ? resolution
+        : 'regular'
+
+    const resolutionText =
+      cleanResolution === 'extra_time'
+        ? 'Definido en tiempo extra'
+        : cleanResolution === 'penalties'
+          ? 'Definido por penales'
+          : null
+
+    const cleanNote = [refereeNote || null, resolutionText]
+      .filter(Boolean)
+      .join('\n')
+
     const { error: updateError } = await supabase
       .from('matches')
       .update({
-        score_a: match.live_score_a ?? 0,
-        score_b: match.live_score_b ?? 0,
+        score_a: finalScoreA,
+        score_b: finalScoreB,
+        winner_team_id: winner || null,
         status: 'submitted',
-        referee_note: refereeNote || null,
+        referee_note: cleanNote || null,
         ended_at: new Date().toISOString(),
       })
       .eq('id', matchId)
@@ -219,13 +262,20 @@ export async function POST(req: Request) {
     }
 
     if (
-      winnerTeamId &&
+      winner &&
       (match.phase === 'quarterfinal' || match.phase === 'semifinal')
     ) {
-      await advanceWinner(match, winnerTeamId)
+      await advanceWinner(match, winner)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      score_a: finalScoreA,
+      score_b: finalScoreB,
+      winner_team_id: winner || null,
+      resolution: cleanResolution,
+      status: 'submitted',
+    })
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || 'Error interno del servidor' },

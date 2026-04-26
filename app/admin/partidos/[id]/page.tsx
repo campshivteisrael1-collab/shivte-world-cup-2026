@@ -1,13 +1,42 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { getOfficialDisplayMatch } from '../../../../lib/knockout'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
+
+function isKnockoutPhase(phase: string) {
+  return phase === 'quarterfinal' || phase === 'semifinal' || phase === 'final'
+}
+
+function getTeam(teams: any[], id: number) {
+  return teams.find((team) => String(team.id) === String(id)) || null
+}
+
+function TeamMini({ team }: { team: any }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {team?.logo_url ? (
+        <img
+          src={team.logo_url}
+          alt={team.name || team.team || 'Equipo'}
+          style={{
+            width: 34,
+            height: 34,
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
+      ) : null}
+      <strong>{team?.name || team?.team || '—'}</strong>
+    </div>
+  )
+}
 
 export default function EditMatchPage() {
   const router = useRouter()
@@ -15,6 +44,7 @@ export default function EditMatchPage() {
   const matchId = params?.id as string
 
   const [match, setMatch] = useState<any>(null)
+  const [allMatches, setAllMatches] = useState<any[]>([])
   const [teams, setTeams] = useState<any[]>([])
   const [sports, setSports] = useState<any[]>([])
   const [referees, setReferees] = useState<any[]>([])
@@ -23,26 +53,41 @@ export default function EditMatchPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
+  async function load() {
+    const { data: m } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('id', matchId)
+      .single()
+
+    const { data: allM } = await supabase.from('matches').select('*')
+    const { data: t } = await supabase.from('teams').select('*').order('name')
+    const { data: s } = await supabase.from('Sports').select('*')
+    const { data: r } = await supabase.from('referees').select('*').order('name')
+
+    setMatch(m)
+    setAllMatches(allM || [])
+    setTeams(t || [])
+    setSports(s || [])
+    setReferees(r || [])
+  }
+
   useEffect(() => {
-    async function load() {
-      const { data: m } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('id', matchId)
-        .single()
-
-      const { data: t } = await supabase.from('teams').select('*').order('name')
-      const { data: s } = await supabase.from('Sports').select('*')
-      const { data: r } = await supabase.from('referees').select('*').order('name')
-
-      setMatch(m)
-      setTeams(t || [])
-      setSports(s || [])
-      setReferees(r || [])
-    }
-
     if (matchId) load()
   }, [matchId])
+
+  const displayMatch = useMemo(() => {
+    if (!match) return null
+    return getOfficialDisplayMatch(match, allMatches, teams)
+  }, [match, allMatches, teams])
+
+  const displayTeamA =
+    displayMatch?._team_a_display ||
+    getTeam(teams, displayMatch?.team_a_id)
+
+  const displayTeamB =
+    displayMatch?._team_b_display ||
+    getTeam(teams, displayMatch?.team_b_id)
 
   async function postAction(action: 'save' | 'reset' | 'clearFinal' | 'cancel') {
     try {
@@ -91,6 +136,7 @@ export default function EditMatchPage() {
     if (!ok) return
     alert('Guardado')
     router.refresh()
+    await load()
   }
 
   async function resetMatch() {
@@ -130,6 +176,8 @@ export default function EditMatchPage() {
     return <main style={{ padding: 20 }}>Cargando...</main>
   }
 
+  const isKnockout = isKnockoutPhase(match.phase)
+
   return (
     <main
       style={{
@@ -158,6 +206,43 @@ export default function EditMatchPage() {
 
       <h1 style={{ marginTop: 0, marginBottom: 18 }}>Editar partido</h1>
 
+      {isKnockout && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 16,
+            borderRadius: 18,
+            border: '1px solid #bfdbfe',
+            background: '#eff6ff',
+          }}
+        >
+          <div style={{ fontWeight: 'bold', marginBottom: 10 }}>
+            Cruce oficial calculado por tabla
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr auto 1fr',
+              alignItems: 'center',
+              gap: 12,
+              fontSize: 18,
+            }}
+          >
+            <TeamMini team={displayTeamA} />
+            <strong>vs</strong>
+            <div style={{ justifySelf: 'end' }}>
+              <TeamMini team={displayTeamB} />
+            </div>
+          </div>
+
+          <div style={{ marginTop: 10, fontSize: 13, color: '#1d4ed8' }}>
+            En eliminatorias los equipos se muestran según la lógica oficial de
+            clasificación. No se editan manualmente aquí.
+          </div>
+        </div>
+      )}
+
       <div
         style={{
           display: 'grid',
@@ -169,39 +254,43 @@ export default function EditMatchPage() {
           boxShadow: '0 4px 14px rgba(0,0,0,0.05)',
         }}
       >
-        <label>
-          <strong>Equipo A</strong>
-          <select
-            value={match.team_a_id}
-            onChange={(e) =>
-              setMatch({ ...match, team_a_id: Number(e.target.value) })
-            }
-            style={input}
-          >
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!isKnockout && (
+          <>
+            <label>
+              <strong>Equipo A</strong>
+              <select
+                value={match.team_a_id}
+                onChange={(e) =>
+                  setMatch({ ...match, team_a_id: Number(e.target.value) })
+                }
+                style={input}
+              >
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label>
-          <strong>Equipo B</strong>
-          <select
-            value={match.team_b_id}
-            onChange={(e) =>
-              setMatch({ ...match, team_b_id: Number(e.target.value) })
-            }
-            style={input}
-          >
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <label>
+              <strong>Equipo B</strong>
+              <select
+                value={match.team_b_id}
+                onChange={(e) =>
+                  setMatch({ ...match, team_b_id: Number(e.target.value) })
+                }
+                style={input}
+              >
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
 
         <label>
           <strong>Deporte</strong>
@@ -253,11 +342,13 @@ export default function EditMatchPage() {
             style={input}
           >
             <option value="">Sin árbitro</option>
-            {referees.map((r) => (
-              <option key={r.profile_id} value={r.profile_id}>
-                {r.name}
-              </option>
-            ))}
+            {referees
+              .filter((r) => r.is_active !== false)
+              .map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name || r.username || 'Árbitro sin nombre'}
+                </option>
+              ))}
           </select>
         </label>
 

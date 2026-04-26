@@ -16,17 +16,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    const { data: session } = await supabase
+    const { data: session, error: sessionError } = await supabase
       .from('referee_sessions')
       .select('*')
       .eq('token', token)
       .single()
 
-    if (!session) {
+    if (sessionError || !session) {
       return NextResponse.json({ error: 'Sesión inválida' }, { status: 401 })
     }
 
+    const refereeId = session.referee_id
+
+    if (!refereeId) {
+      return NextResponse.json(
+        { error: 'Sesión inválida: referee_id requerido' },
+        { status: 401 }
+      )
+    }
+
     const { matchId, refereeNote } = await req.json()
+
+    if (!matchId) {
+      return NextResponse.json(
+        { error: 'matchId requerido' },
+        { status: 400 }
+      )
+    }
 
     const { data: match, error: matchError } = await supabase
       .from('matches')
@@ -35,11 +51,17 @@ export async function POST(req: Request) {
       .single()
 
     if (matchError || !match) {
-      return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Partido no encontrado' },
+        { status: 404 }
+      )
     }
 
-    if (match.referee_id !== session.profile_id) {
-      return NextResponse.json({ error: 'No puedes editar este partido' }, { status: 403 })
+    if (String(match.referee_id) !== String(refereeId)) {
+      return NextResponse.json(
+        { error: 'No puedes editar este partido' },
+        { status: 403 }
+      )
     }
 
     if (match.status === 'submitted') {
@@ -57,7 +79,10 @@ export async function POST(req: Request) {
       .eq('id', matchId)
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({ success: true })

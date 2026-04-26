@@ -3,6 +3,10 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import {
+  buildOfficialKnockoutMatches,
+  sortMatches as sortOfficialMatches,
+} from '../../../lib/knockout'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,6 +17,14 @@ function getTeam(teams: any[], id: number) {
   return teams.find((t) => String(t.id) === String(id)) || null
 }
 
+function getDisplayTeamA(match: any, teams: any[]) {
+  return match._team_a_display || getTeam(teams, match.team_a_id)
+}
+
+function getDisplayTeamB(match: any, teams: any[]) {
+  return match._team_b_display || getTeam(teams, match.team_b_id)
+}
+
 function getSportName(sports: any[], id: number) {
   const sport = sports.find((s) => String(s.id) === String(id))
   return sport?.display_name || sport?.name || '—'
@@ -21,10 +33,10 @@ function getSportName(sports: any[], id: number) {
 function getRefereeName(referees: any[], id: string | null) {
   if (!id) return '—'
   return (
-    referees.find((r) => String(r.profile_id) === String(id))?.name ||
     referees.find((r) => String(r.id) === String(id))?.name ||
-    referees.find((r) => String(r.profile_id) === String(id))?.username ||
+    referees.find((r) => String(r.profile_id) === String(id))?.name ||
     referees.find((r) => String(r.id) === String(id))?.username ||
+    referees.find((r) => String(r.profile_id) === String(id))?.username ||
     '—'
   )
 }
@@ -61,6 +73,40 @@ function isKnockoutPhase(phase: string) {
   return phase === 'quarterfinal' || phase === 'semifinal' || phase === 'final'
 }
 
+function getDisplayScoreA(match: any) {
+  if (
+    match.score_a !== null &&
+    match.score_a !== undefined &&
+    match.score_b !== null &&
+    match.score_b !== undefined
+  ) {
+    return match.score_a
+  }
+
+  if (match.started_at) {
+    return match.live_score_a ?? 0
+  }
+
+  return match.live_score_a ?? 0
+}
+
+function getDisplayScoreB(match: any) {
+  if (
+    match.score_a !== null &&
+    match.score_a !== undefined &&
+    match.score_b !== null &&
+    match.score_b !== undefined
+  ) {
+    return match.score_b
+  }
+
+  if (match.started_at) {
+    return match.live_score_b ?? 0
+  }
+
+  return match.live_score_b ?? 0
+}
+
 function TeamMini({ team }: { team: any }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -76,7 +122,7 @@ function TeamMini({ team }: { team: any }) {
           }}
         />
       ) : null}
-      <span>{team?.name || '—'}</span>
+      <span>{team?.name || team?.team || '—'}</span>
     </div>
   )
 }
@@ -130,12 +176,22 @@ export default function AdminPartidosPage() {
     loadData()
   }, [])
 
+  const displayMatches = useMemo(() => {
+    const regularMatches = matches.filter((match) => match.phase === 'regular')
+    const { knockoutMatches } = buildOfficialKnockoutMatches(matches, teams)
+
+    return [...regularMatches, ...knockoutMatches].sort(sortOfficialMatches)
+  }, [matches, teams])
+
   const filteredMatches = useMemo(() => {
-    const filtered = matches.filter((m) => {
+    const filtered = displayMatches.filter((m) => {
+      const displayTeamA = getDisplayTeamA(m, teams)
+      const displayTeamB = getDisplayTeamB(m, teams)
+
       const teamMatch =
         !teamFilter ||
-        String(m.team_a_id) === teamFilter ||
-        String(m.team_b_id) === teamFilter
+        String(displayTeamA?.id) === teamFilter ||
+        String(displayTeamB?.id) === teamFilter
 
       const sportMatch = !sportFilter || String(m.sport_id) === sportFilter
       const phaseMatch = !phaseFilter || String(m.phase) === phaseFilter
@@ -154,28 +210,10 @@ export default function AdminPartidosPage() {
       return teamMatch && sportMatch && phaseMatch && statusMatch
     })
 
-    const phaseOrder: Record<string, number> = {
-      regular: 1,
-      quarterfinal: 2,
-      semifinal: 3,
-      final: 4,
-    }
+    return filtered.sort(sortOfficialMatches)
+  }, [displayMatches, teams, teamFilter, sportFilter, phaseFilter, statusFilter])
 
-    return filtered.sort((a, b) => {
-      const pA = phaseOrder[a.phase] ?? 99
-      const pB = phaseOrder[b.phase] ?? 99
-      if (pA !== pB) return pA - pB
-
-      const cA = String(a.match_code || '')
-      const cB = String(b.match_code || '')
-      return cA.localeCompare(cB, undefined, {
-        numeric: true,
-        sensitivity: 'base',
-      })
-    })
-  }, [matches, teamFilter, sportFilter, phaseFilter, statusFilter])
-
-  async function handleUpdateMatchReferee(match: any, refereeProfileId: string) {
+  async function handleUpdateMatchReferee(match: any, refereeId: string) {
     setUpdatingRefereeId(match.id)
 
     try {
@@ -191,7 +229,7 @@ export default function AdminPartidosPage() {
             sport_id: match.sport_id,
             phase: match.phase,
             match_time: match.match_time,
-            referee_id: refereeProfileId || null,
+            referee_id: refereeId || null,
             live_score_a: match.live_score_a ?? 0,
             live_score_b: match.live_score_b ?? 0,
             score_a: match.score_a,
@@ -518,8 +556,8 @@ export default function AdminPartidosPage() {
       <div style={{ display: 'grid', gap: 12 }}>
         {filteredMatches.map((m) => {
           const style = getStatusStyle(m)
-          const teamA = getTeam(teams, m.team_a_id)
-          const teamB = getTeam(teams, m.team_b_id)
+          const teamA = getDisplayTeamA(m, teams)
+          const teamB = getDisplayTeamB(m, teams)
           const isKnockout = isKnockoutPhase(m.phase)
 
           const activeReferees = referees.filter(
@@ -610,9 +648,7 @@ export default function AdminPartidosPage() {
                         <option value="">Sin asignar</option>
 
                         {activeReferees.map((referee) => {
-                          const refereeValue = String(
-                            referee.profile_id || referee.id
-                          )
+                          const refereeValue = String(referee.id)
 
                           return (
                             <option key={referee.id} value={refereeValue}>
@@ -648,7 +684,7 @@ export default function AdminPartidosPage() {
                   )}
 
                   <div style={{ marginTop: 8, fontWeight: 'bold', fontSize: 20 }}>
-                    {m.live_score_a ?? 0} - {m.live_score_b ?? 0}
+                    {getDisplayScoreA(m)} - {getDisplayScoreB(m)}
                     {m.status === 'submitted' && (
                       <span style={{ marginLeft: 10, fontSize: 14 }}>
                         (final {m.score_a ?? 0} - {m.score_b ?? 0})

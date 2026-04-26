@@ -2,6 +2,13 @@ import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import LiveMatchControls from './live-match-controls'
+import KnockoutMatchControls from './knockout-match-controls'
+import FinalMatchControls from './final-match-controls'
+import {
+  getOfficialDisplayMatch,
+  hasFinalScore,
+  sortMatches,
+} from '../../../lib/knockout'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,72 +28,13 @@ function getMatchTitle(match: any) {
   return match.phase || 'Partido'
 }
 
-function hasFinalScore(match: any) {
-  if (!match) return false
-
-  return (
-    match.score_a !== null &&
-    match.score_a !== undefined &&
-    match.score_b !== null &&
-    match.score_b !== undefined
-  )
-}
-
 function isSubmitted(match: any) {
   return match?.status === 'submitted' || hasFinalScore(match)
 }
 
-function getTeamGroup(team: any) {
-  return team?.group_name || team?.group || team?.grupo || 'Sin grupo'
-}
-
-function getTeam(teams: any[], id: number) {
+function getTeam(teams: any[], id: number | string | null | undefined) {
+  if (id === null || id === undefined) return null
   return teams.find((team) => String(team.id) === String(id)) || null
-}
-
-function parseTimeRangeToMinutes(value: string | null | undefined) {
-  if (!value) return 999999
-
-  const firstPart = value.split('-')[0]?.trim().toLowerCase() || ''
-  const match = firstPart.match(/(\d{1,2}):(\d{2})\s*(a\.m\.|p\.m\.)/)
-
-  if (!match) return 999999
-
-  let hour = Number(match[1])
-  const minutes = Number(match[2])
-  const meridiem = match[3]
-
-  if (meridiem === 'p.m.' && hour !== 12) hour += 12
-  if (meridiem === 'a.m.' && hour === 12) hour = 0
-
-  return hour * 60 + minutes
-}
-
-function getPhaseOrder(phase: string) {
-  if (phase === 'regular') return 1
-  if (phase === 'quarterfinal') return 2
-  if (phase === 'semifinal') return 3
-  if (phase === 'final') return 4
-  return 99
-}
-
-function sortMatches(a: any, b: any) {
-  const phaseA = getPhaseOrder(a.phase)
-  const phaseB = getPhaseOrder(b.phase)
-
-  if (phaseA !== phaseB) return phaseA - phaseB
-
-  const codeA = String(a.match_code || '')
-  const codeB = String(b.match_code || '')
-
-  if (codeA !== codeB) {
-    return codeA.localeCompare(codeB, undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    })
-  }
-
-  return parseTimeRangeToMinutes(a.match_time) - parseTimeRangeToMinutes(b.match_time)
 }
 
 function makePlaceholderTeam(name: string) {
@@ -99,165 +47,36 @@ function makePlaceholderTeam(name: string) {
   }
 }
 
-function calculateGeneralStandings(matches: any[], teams: any[]) {
-  const table: any = {}
-
-  teams.forEach((team) => {
-    table[team.id] = {
-      id: team.id,
-      team: team.name,
-      name: team.name,
-      coach_name: team.coach_name,
-      logo_url: team.logo_url,
-      group: getTeamGroup(team),
-      PJ: 0,
-      PG: 0,
-      PE: 0,
-      PP: 0,
-      PF: 0,
-      PC: 0,
-      DIF: 0,
-      PTS: 0,
+function makeTeamFromView(match: any, side: 'a' | 'b') {
+  if (side === 'a') {
+    return {
+      id: match.team_a_id,
+      name: match.team_a_name || 'Equipo A',
+      team: match.team_a_name || 'Equipo A',
+      coach_name: match.team_a_coach_name || null,
+      logo_url: match.team_a_logo_url || null,
     }
-  })
+  }
 
-  matches
-    .filter((match) => match.phase === 'regular' && hasFinalScore(match))
-    .forEach((match) => {
-      const teamA = table[match.team_a_id]
-      const teamB = table[match.team_b_id]
-
-      if (!teamA || !teamB) return
-
-      const scoreA = Number(match.score_a ?? 0)
-      const scoreB = Number(match.score_b ?? 0)
-
-      teamA.PJ++
-      teamB.PJ++
-
-      teamA.PF += scoreA
-      teamA.PC += scoreB
-
-      teamB.PF += scoreB
-      teamB.PC += scoreA
-
-      if (scoreA > scoreB) {
-        teamA.PG++
-        teamA.PTS += 3
-        teamB.PP++
-      } else if (scoreB > scoreA) {
-        teamB.PG++
-        teamB.PTS += 3
-        teamA.PP++
-      } else {
-        teamA.PE++
-        teamB.PE++
-        teamA.PTS++
-        teamB.PTS++
-      }
-    })
-
-  Object.values(table).forEach((team: any) => {
-    team.DIF = team.PF - team.PC
-  })
-
-  return Object.values(table).sort((a: any, b: any) => {
-    if (b.PTS !== a.PTS) return b.PTS - a.PTS
-    if (b.DIF !== a.DIF) return b.DIF - a.DIF
-    if (b.PF !== a.PF) return b.PF - a.PF
-    return a.team.localeCompare(b.team)
-  })
+  return {
+    id: match.team_b_id,
+    name: match.team_b_name || 'Equipo B',
+    team: match.team_b_name || 'Equipo B',
+    coach_name: match.team_b_coach_name || null,
+    logo_url: match.team_b_logo_url || null,
+  }
 }
 
-function getWinnerTeam(match: any) {
-  if (!match) return null
-  if (!hasFinalScore(match)) return null
-
-  const scoreA = Number(match.score_a ?? 0)
-  const scoreB = Number(match.score_b ?? 0)
-
-  if (scoreA > scoreB) return match._team_a_display || null
-  if (scoreB > scoreA) return match._team_b_display || null
-
-  return null
+function getDisplayScoreA(match: any) {
+  if (isSubmitted(match)) return match.score_a ?? 0
+  if (match.started_at) return match.live_score_a ?? 0
+  return match.live_score_a ?? match.score_a ?? 0
 }
 
-function buildDynamicKnockoutMatches(allMatches: any[], teams: any[]) {
-  const standings = calculateGeneralStandings(allMatches, teams)
-  const top8 = standings.slice(0, 8)
-
-  const quarterMatches = allMatches
-    .filter((match) => match.phase === 'quarterfinal')
-    .sort(sortMatches)
-
-  const semiMatches = allMatches
-    .filter((match) => match.phase === 'semifinal')
-    .sort(sortMatches)
-
-  const finalMatches = allMatches
-    .filter((match) => match.phase === 'final')
-    .sort(sortMatches)
-
-  const quarterPairs = [
-    [0, 7],
-    [1, 6],
-    [2, 5],
-    [3, 4],
-  ]
-
-  const quarterDisplayMatches = quarterMatches.map((match, index) => {
-    const pair = quarterPairs[index] || [null, null]
-    const teamA = pair[0] !== null ? top8[pair[0]] : null
-    const teamB = pair[1] !== null ? top8[pair[1]] : null
-
-    return {
-      ...match,
-      _team_a_display:
-        teamA || makePlaceholderTeam(pair[0] !== null ? `${pair[0] + 1}° lugar` : 'Clasificado'),
-      _team_b_display:
-        teamB || makePlaceholderTeam(pair[1] !== null ? `${pair[1] + 1}° lugar` : 'Clasificado'),
-    }
-  })
-
-  const qf1Winner = getWinnerTeam(quarterDisplayMatches[0])
-  const qf2Winner = getWinnerTeam(quarterDisplayMatches[1])
-  const qf3Winner = getWinnerTeam(quarterDisplayMatches[2])
-  const qf4Winner = getWinnerTeam(quarterDisplayMatches[3])
-
-  const semiDisplayMatches = semiMatches.map((match, index) => {
-    if (index === 0) {
-      return {
-        ...match,
-        _team_a_display: qf1Winner || makePlaceholderTeam('Ganador QF1'),
-        _team_b_display: qf2Winner || makePlaceholderTeam('Ganador QF2'),
-      }
-    }
-
-    if (index === 1) {
-      return {
-        ...match,
-        _team_a_display: qf3Winner || makePlaceholderTeam('Ganador QF3'),
-        _team_b_display: qf4Winner || makePlaceholderTeam('Ganador QF4'),
-      }
-    }
-
-    return {
-      ...match,
-      _team_a_display: makePlaceholderTeam('Ganador cuarto'),
-      _team_b_display: makePlaceholderTeam('Ganador cuarto'),
-    }
-  })
-
-  const sf1Winner = getWinnerTeam(semiDisplayMatches[0])
-  const sf2Winner = getWinnerTeam(semiDisplayMatches[1])
-
-  const finalDisplayMatches = finalMatches.map((match) => ({
-    ...match,
-    _team_a_display: sf1Winner || makePlaceholderTeam('Ganador SF1'),
-    _team_b_display: sf2Winner || makePlaceholderTeam('Ganador SF2'),
-  }))
-
-  return [...quarterDisplayMatches, ...semiDisplayMatches, ...finalDisplayMatches]
+function getDisplayScoreB(match: any) {
+  if (isSubmitted(match)) return match.score_b ?? 0
+  if (match.started_at) return match.live_score_b ?? 0
+  return match.live_score_b ?? match.score_b ?? 0
 }
 
 function getPhaseBlockReason(match: any, allMatches: any[]) {
@@ -363,7 +182,6 @@ export default async function MatchDetailPage({
     .from('matches')
     .select('id, status, match_code, phase, match_time, score_a, score_b')
     .eq('referee_id', refereeId)
-    .order('match_code', { ascending: true })
 
   const sortedRefereeMatches = (refereeMatches || []).sort(sortMatches)
 
@@ -371,25 +189,8 @@ export default async function MatchDetailPage({
     sortedRefereeMatches.find((m: any) => !isSubmitted(m))?.id ?? null
 
   const { data: match, error: matchError } = await supabase
-    .from('matches')
-    .select(`
-      id,
-      match_code,
-      phase,
-      sport_id,
-      team_a_id,
-      team_b_id,
-      referee_id,
-      score_a,
-      score_b,
-      live_score_a,
-      live_score_b,
-      status,
-      referee_note,
-      match_time,
-      started_at,
-      ended_at
-    `)
+    .from('matches_view')
+    .select('*')
     .eq('id', id)
     .eq('referee_id', refereeId)
     .single()
@@ -397,33 +198,31 @@ export default async function MatchDetailPage({
   if (matchError || !match) return <div>Partido no encontrado</div>
 
   const { data: allMatchesRaw } = await supabase
-    .from('matches')
+    .from('matches_view')
     .select('*')
 
   const { data: teamsRaw } = await supabase
     .from('teams')
-    .select('id, name, coach_name, logo_url, group_name, group, grupo')
+    .select('*')
 
   const allMatches = allMatchesRaw || []
   const teams = teamsRaw || []
 
-  const dynamicKnockoutMatches = buildDynamicKnockoutMatches(allMatches, teams)
-  const dynamicMatch =
-    dynamicKnockoutMatches.find((m: any) => String(m.id) === String(match.id)) || null
-
-  const displayMatch = dynamicMatch || match
+  const displayMatch = getOfficialDisplayMatch(match, allMatches, teams)
 
   const teamA =
-    displayMatch._team_a_display ||
-    getTeam(teams, displayMatch.team_a_id) ||
+    displayMatch?._team_a_display ||
+    getTeam(teams, displayMatch?.team_a_id) ||
+    makeTeamFromView(match, 'a') ||
     makePlaceholderTeam('Equipo A')
 
   const teamB =
-    displayMatch._team_b_display ||
-    getTeam(teams, displayMatch.team_b_id) ||
+    displayMatch?._team_b_display ||
+    getTeam(teams, displayMatch?.team_b_id) ||
+    makeTeamFromView(match, 'b') ||
     makePlaceholderTeam('Equipo B')
 
-  const submitted = match.status === 'submitted'
+  const submitted = isSubmitted(match)
   const isNextPending = nextPendingId === match.id
   const phaseBlockReason = getPhaseBlockReason(match, allMatches)
 
@@ -453,6 +252,16 @@ export default async function MatchDetailPage({
         .order('player_name')
     : { data: [] }
 
+  const teamAPlayerNames =
+    teamAPlayers && teamAPlayers.length > 0
+      ? teamAPlayers.map((p: any) => p.player_name).filter(Boolean)
+      : []
+
+  const teamBPlayerNames =
+    teamBPlayers && teamBPlayers.length > 0
+      ? teamBPlayers.map((p: any) => p.player_name).filter(Boolean)
+      : []
+
   const { data: sport } = await supabase
     .from('Sports')
     .select('name, display_name, location, referees_display, rules')
@@ -466,12 +275,20 @@ export default async function MatchDetailPage({
     .eq('is_active', true)
     .order('name')
 
-  const sportTitle = sport?.display_name || sport?.name || 'Deporte'
+  const sportTitle =
+    match.sport_display ||
+    match.sport_name ||
+    sport?.display_name ||
+    sport?.name ||
+    'Deporte'
 
   const refereesDisplay =
     sportReferees && sportReferees.length > 0
       ? sportReferees.map((r: any) => r.name || r.username).join(', ')
       : 'Sin asignar'
+
+  const displayScoreA = getDisplayScoreA(match)
+  const displayScoreB = getDisplayScoreB(match)
 
   return (
     <main style={{ padding: 24, fontFamily: 'Arial, sans-serif' }}>
@@ -553,13 +370,19 @@ export default async function MatchDetailPage({
           background: '#fff',
         }}
       >
-        <TeamHeader name={teamA?.name || teamA?.team || 'Equipo A'} logo={teamA?.logo_url} />
+        <TeamHeader
+          name={teamA?.name || teamA?.team || 'Equipo A'}
+          logo={teamA?.logo_url}
+        />
 
         <div style={{ fontWeight: 'bold', fontSize: 24 }}>
-          {match.live_score_a ?? 0} - {match.live_score_b ?? 0}
+          {displayScoreA} - {displayScoreB}
         </div>
 
-        <TeamHeader name={teamB?.name || teamB?.team || 'Equipo B'} logo={teamB?.logo_url} />
+        <TeamHeader
+          name={teamB?.name || teamB?.team || 'Equipo B'}
+          logo={teamB?.logo_url}
+        />
       </div>
 
       <div
@@ -589,8 +412,8 @@ export default async function MatchDetailPage({
 
             <p style={{ margin: '6px 0' }}>
               <strong>Jugadores:</strong>{' '}
-              {teamAPlayers && teamAPlayers.length > 0
-                ? teamAPlayers.map((p: any) => p.player_name).join(', ')
+              {teamAPlayerNames.length > 0
+                ? teamAPlayerNames.join(', ')
                 : 'Por asignar'}
             </p>
           </div>
@@ -615,8 +438,8 @@ export default async function MatchDetailPage({
 
             <p style={{ margin: '6px 0' }}>
               <strong>Jugadores:</strong>{' '}
-              {teamBPlayers && teamBPlayers.length > 0
-                ? teamBPlayers.map((p: any) => p.player_name).join(', ')
+              {teamBPlayerNames.length > 0
+                ? teamBPlayerNames.join(', ')
                 : 'Por asignar'}
             </p>
           </div>
@@ -669,6 +492,32 @@ export default async function MatchDetailPage({
         >
           Este partido todavía no está habilitado.
         </div>
+      ) : match.phase === 'final' ? (
+        <FinalMatchControls
+          matchId={match.id}
+          teamAName={teamA?.name || teamA?.team || 'Equipo A'}
+          teamBName={teamB?.name || teamB?.team || 'Equipo B'}
+          teamAId={teamA?.id}
+          teamBId={teamB?.id}
+          teamAPlayers={teamAPlayerNames}
+          teamBPlayers={teamBPlayerNames}
+          initialLiveScoreA={match.live_score_a}
+          initialLiveScoreB={match.live_score_b}
+          initialNote={match.referee_note}
+          initialStartedAt={match.started_at}
+        />
+      ) : match.phase === 'quarterfinal' || match.phase === 'semifinal' ? (
+        <KnockoutMatchControls
+          matchId={match.id}
+          teamAName={teamA?.name || teamA?.team || 'Equipo A'}
+          teamBName={teamB?.name || teamB?.team || 'Equipo B'}
+          teamAId={teamA?.id}
+          teamBId={teamB?.id}
+          initialLiveScoreA={match.live_score_a}
+          initialLiveScoreB={match.live_score_b}
+          initialNote={match.referee_note}
+          initialStartedAt={match.started_at}
+        />
       ) : (
         <LiveMatchControls
           matchId={match.id}

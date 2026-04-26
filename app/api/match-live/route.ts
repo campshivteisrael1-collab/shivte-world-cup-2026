@@ -26,16 +26,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Sesión inválida' }, { status: 401 })
     }
 
+    const refereeId = session.referee_id
+
+    if (!refereeId) {
+      return NextResponse.json(
+        { error: 'Sesión inválida: referee_id requerido' },
+        { status: 401 }
+      )
+    }
+
     const { matchId, scoreA, scoreB } = await req.json()
-
-    const { data: refereeMatches } = await supabase
-      .from('matches')
-      .select('id, status, match_code')
-      .eq('referee_id', session.profile_id)
-      .order('match_code', { ascending: true })
-
-    const nextPendingId =
-      refereeMatches?.find((m: any) => m.status !== 'submitted')?.id ?? null
 
     const { data: match, error: matchError } = await supabase
       .from('matches')
@@ -44,23 +44,22 @@ export async function POST(req: Request) {
       .single()
 
     if (matchError || !match) {
-      return NextResponse.json({ error: 'Partido no encontrado' }, { status: 404 })
-    }
-
-    if (match.referee_id !== session.profile_id) {
-      return NextResponse.json({ error: 'No puedes editar este partido' }, { status: 403 })
-    }
-
-    if (match.status === 'submitted') {
       return NextResponse.json(
-        { error: 'Este partido ya fue capturado y no puede editarse' },
+        { error: 'Partido no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    if (String(match.referee_id) !== String(refereeId)) {
+      return NextResponse.json(
+        { error: 'No puedes editar este partido' },
         { status: 403 }
       )
     }
 
-    if (nextPendingId !== match.id) {
+    if (match.status === 'submitted') {
       return NextResponse.json(
-        { error: 'Primero debes capturar la jornada anterior' },
+        { error: 'El partido ya fue finalizado' },
         { status: 403 }
       )
     }
@@ -72,25 +71,30 @@ export async function POST(req: Request) {
       )
     }
 
-    const safeScoreA = Math.max(0, Number(scoreA))
-    const safeScoreB = Math.max(0, Number(scoreB))
+    const cleanScoreA = Number(scoreA ?? 0)
+    const cleanScoreB = Number(scoreB ?? 0)
 
-    const { error: updateError } = await supabase
+    const { data: updatedMatch, error: updateError } = await supabase
       .from('matches')
       .update({
-        live_score_a: safeScoreA,
-        live_score_b: safeScoreB,
+        live_score_a: cleanScoreA,
+        live_score_b: cleanScoreB,
       })
       .eq('id', matchId)
+      .select('live_score_a, live_score_b')
+      .single()
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
       success: true,
-      live_score_a: safeScoreA,
-      live_score_b: safeScoreB,
+      live_score_a: updatedMatch.live_score_a,
+      live_score_b: updatedMatch.live_score_b,
     })
   } catch (err: any) {
     return NextResponse.json(
