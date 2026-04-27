@@ -18,7 +18,7 @@ type EventType =
 type FinalEvent = {
   id: string
   stage: Stage
-  minute: string
+  minute: number
   team: 'A' | 'B' | 'neutral'
   player: string
   type: EventType
@@ -73,29 +73,13 @@ function mapDbEventToFinalEvent(row: any): FinalEvent {
   return {
     id: row.id,
     stage: row.stage || 'first_half',
-    minute: row.minute || '',
+    minute: Number(row.minute ?? 0),
     team: row.team_side || 'neutral',
     player: row.player || 'General',
     type: row.event_type,
     note: row.note || undefined,
   }
 }
-
-function getStageBaseSeconds(stage: Stage) {
-  if (stage === 'second_half') return 12 * 60
-  if (stage === 'extra_time') return 24 * 60
-  if (stage === 'penalties') return 29 * 60
-  return 0
-}
-
-function getStageDurationSeconds(stage: Stage) {
-  if (stage === 'first_half') return 12 * 60
-  if (stage === 'halftime') return 5 * 60
-  if (stage === 'second_half') return 12 * 60
-  if (stage === 'extra_time') return 5 * 60
-  return 0
-}
-
 
 export default function FinalMatchControls({
   matchId,
@@ -159,24 +143,22 @@ export default function FinalMatchControls({
   const noteTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const firstRenderRef = useRef(true)
 
-  const firstHalfMinutes = 12
-  const halftimeMinutes = 5
-  const secondHalfMinutes = 12
+  const firstHalfMinutes = 10
+  const secondHalfMinutes = 10
   const extraTimeMinutes = 5
 
   const durationMinutes =
     stage === 'first_half'
       ? firstHalfMinutes
-      : stage === 'halftime'
-        ? halftimeMinutes
-        : stage === 'second_half'
-          ? secondHalfMinutes
-          : stage === 'extra_time'
-            ? extraTimeMinutes
-            : 0
+      : stage === 'second_half'
+        ? secondHalfMinutes
+        : stage === 'extra_time'
+          ? extraTimeMinutes
+          : 0
 
   const timerActive =
     Boolean(stageStartedAt) &&
+    stage !== 'halftime' &&
     stage !== 'penalties'
 
   const pauseActive = Boolean(pauseStartedAt)
@@ -221,29 +203,15 @@ export default function FinalMatchControls({
 
   const totalAddedSeconds = addedSeconds + pauseSeconds
 
-  const elapsedStageSeconds = useMemo(() => {
-    if (!stageStartedAt || !durationMinutes) return 0
-    return Math.max(0, Math.floor((now - new Date(stageStartedAt).getTime()) / 1000))
-  }, [stageStartedAt, now, durationMinutes])
-
   const remainingSeconds = useMemo(() => {
     if (!stageStartedAt || !durationMinutes) return durationMinutes * 60
-    return durationMinutes * 60 + totalAddedSeconds - elapsedStageSeconds
-  }, [stageStartedAt, durationMinutes, totalAddedSeconds, elapsedStageSeconds])
 
-  const publicClockSeconds = useMemo(() => {
-    const durationSeconds = getStageDurationSeconds(stage)
-    const baseSeconds = getStageBaseSeconds(stage)
-    const visibleStageSeconds = durationSeconds ? Math.min(elapsedStageSeconds, durationSeconds) : elapsedStageSeconds
-    return baseSeconds + visibleStageSeconds
-  }, [stage, elapsedStageSeconds])
+    const startMs = new Date(stageStartedAt).getTime()
+    const normalEndMs = startMs + durationMinutes * 60 * 1000
+    const adjustedEndMs = normalEndMs + totalAddedSeconds * 1000
 
-  const publicAddedSeconds = elapsedStageSeconds >= durationMinutes * 60
-    ? Math.max(
-        totalAddedSeconds,
-        durationMinutes ? Math.max(0, elapsedStageSeconds - durationMinutes * 60) : 0
-      )
-    : 0
+    return Math.ceil((adjustedEndMs - now) / 1000)
+  }, [stageStartedAt, now, durationMinutes, totalAddedSeconds])
 
   const isTie = scoreA === scoreB
   const isTimeFinished = timerActive && remainingSeconds <= 0
@@ -275,41 +243,10 @@ export default function FinalMatchControls({
         return
       }
 
-      await fetch('/api/match-event', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, deleteAll: true }),
-      })
-
-      await fetch('/api/match-live', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ matchId, scoreA: 0, scoreB: 0 }),
-      })
-
       setStartedAt(result.started_at)
       setStageStartedAt(result.started_at)
       setStage('first_half')
-      setScoreA(0)
-      setScoreB(0)
-      setPenaltyA(0)
-      setPenaltyB(0)
-      setWinnerTeamId(null)
-      setEvents([])
-      setNote('')
-      setAddedSeconds(0)
-      setPauseStartedAt(null)
-      setPauseReason('')
       setNow(Date.now())
-      await saveFinalState({
-        stage: 'first_half',
-        stageStartedAt: result.started_at,
-        addedSeconds: 0,
-        pauseStartedAt: null,
-        pauseReason: '',
-        penaltyA: 0,
-        penaltyB: 0,
-      })
       setLoading(false)
       router.refresh()
     } catch (err: any) {
@@ -403,13 +340,14 @@ export default function FinalMatchControls({
   }, [note])
 
   function getCurrentMinute() {
-    if (!stageStartedAt || !durationMinutes) return ''
+    if (!stageStartedAt) return 0
 
     const startMs = new Date(stageStartedAt).getTime()
     const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startMs) / 1000))
-    const elapsedMinutes = Math.floor(elapsedSeconds / 60) + 1
+    const baseSeconds = getStageBaseSeconds(stage)
+    const totalSeconds = baseSeconds + elapsedSeconds
 
-    return `${elapsedMinutes}'`
+    return Math.floor(totalSeconds / 60)
   }
 
   function openQuickAction(type: EventType) {
@@ -471,43 +409,6 @@ export default function FinalMatchControls({
     return mapDbEventToFinalEvent(result.event)
   }
 
-  async function saveFinalState(overrides: Partial<{
-    stage: Stage
-    stageStartedAt: string | null
-    addedSeconds: number
-    pauseStartedAt: string | null
-    pauseReason: string
-    penaltyA: number
-    penaltyB: number
-  }> = {}) {
-    try {
-      await fetch('/api/final-state', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          matchId,
-          stage: overrides.stage ?? stage,
-          stageStartedAt: overrides.stageStartedAt !== undefined ? overrides.stageStartedAt : stageStartedAt,
-          addedSeconds: overrides.addedSeconds ?? addedSeconds,
-          pauseStartedAt: overrides.pauseStartedAt !== undefined ? overrides.pauseStartedAt : pauseStartedAt,
-          pauseReason: overrides.pauseReason ?? pauseReason,
-          penaltyA: overrides.penaltyA ?? penaltyA,
-          penaltyB: overrides.penaltyB ?? penaltyB,
-        }),
-      })
-    } catch {
-      // No bloquea al árbitro; la vista pública se actualiza en el siguiente cambio guardado.
-    }
-  }
-
-  useEffect(() => {
-    if (!startedAt) return
-    const timeout = setTimeout(() => {
-      saveFinalState()
-    }, 250)
-    return () => clearTimeout(timeout)
-  }, [startedAt, stage, stageStartedAt, addedSeconds, pauseStartedAt, pauseReason, penaltyA, penaltyB])
-
   async function addEventFromQuickAction() {
     setError('')
 
@@ -565,7 +466,13 @@ export default function FinalMatchControls({
 
     try {
       const savedEvent = await saveFinalEvent(newEvent, nextScoreA, nextScoreB)
+
+      if (quickAction === 'goal' || quickAction === 'own_goal') {
+        await saveFinalState({ lastGoalEventId: savedEvent.id })
+      }
+
       setEvents((current) => [savedEvent, ...current])
+      router.refresh()
       closeQuickAction()
     } catch (err: any) {
       setError(err?.message || 'No se pudo guardar el evento')
@@ -601,10 +508,8 @@ export default function FinalMatchControls({
       return
     }
 
-    const nowIso = new Date().toISOString()
     setPauseReason(reason)
-    setPauseStartedAt(nowIso)
-    saveFinalState({ pauseStartedAt: nowIso, pauseReason: reason })
+    setPauseStartedAt(new Date().toISOString())
     setError('')
   }
 
@@ -619,8 +524,7 @@ export default function FinalMatchControls({
     const reason = pauseReason || 'Pausa'
     const readable = formatTime(seconds)
 
-    const nextAddedSeconds = addedSeconds + seconds
-    setAddedSeconds(nextAddedSeconds)
+    setAddedSeconds((current) => current + seconds)
 
     const newEvent: FinalEvent = {
       id: crypto.randomUUID(),
@@ -641,14 +545,11 @@ export default function FinalMatchControls({
 
     setPauseStartedAt(null)
     setPauseReason('')
-    saveFinalState({ addedSeconds: nextAddedSeconds, pauseStartedAt: null, pauseReason: '' })
     setError('')
   }
 
   async function addManualAddedMinute() {
-    const nextAddedSeconds = addedSeconds + 60
-    setAddedSeconds(nextAddedSeconds)
-    saveFinalState({ addedSeconds: nextAddedSeconds })
+    setAddedSeconds((current) => current + 60)
 
     const newEvent: FinalEvent = {
       id: crypto.randomUUID(),
@@ -669,19 +570,14 @@ export default function FinalMatchControls({
   }
 
   function removeManualAddedMinute() {
-    const nextAddedSeconds = Math.max(0, addedSeconds - 60)
-    setAddedSeconds(nextAddedSeconds)
-    saveFinalState({ addedSeconds: nextAddedSeconds })
+    setAddedSeconds((current) => Math.max(0, current - 60))
   }
 
   function finishFirstHalf() {
     if (pauseStartedAt) endPause()
-    const nowIso = new Date().toISOString()
     setStage('halftime')
-    setStageStartedAt(nowIso)
+    setStageStartedAt(null)
     setAddedSeconds(0)
-    setNow(Date.now())
-    saveFinalState({ stage: 'halftime', stageStartedAt: nowIso, addedSeconds: 0, pauseStartedAt: null, pauseReason: '' })
     setError('')
   }
 
@@ -693,7 +589,6 @@ export default function FinalMatchControls({
     setPauseStartedAt(null)
     setPauseReason('')
     setNow(Date.now())
-    saveFinalState({ stage: 'second_half', stageStartedAt: nowIso, addedSeconds: 0, pauseStartedAt: null, pauseReason: '' })
     setError('')
   }
 
@@ -706,7 +601,6 @@ export default function FinalMatchControls({
     setPauseReason('')
     setWinnerTeamId(null)
     setNow(Date.now())
-    saveFinalState({ stage: 'extra_time', stageStartedAt: nowIso, addedSeconds: 0, pauseStartedAt: null, pauseReason: '' })
     setError('')
   }
 
@@ -718,7 +612,6 @@ export default function FinalMatchControls({
     setPauseStartedAt(null)
     setPauseReason('')
     setWinnerTeamId(null)
-    saveFinalState({ stage: 'penalties', stageStartedAt: null, addedSeconds: 0, pauseStartedAt: null, pauseReason: '' })
     setError('')
   }
 
@@ -750,7 +643,7 @@ export default function FinalMatchControls({
               : 'General'
 
         const notePart = event.note ? ` — ${event.note}` : ''
-        const minutePart = event.minute ? `${event.minute} ` : ''
+        const minutePart = event.minute !== null && event.minute !== undefined ? `${event.minute}' ` : ''
 
         return `${minutePart}${getStageLabel(event.stage)} | ${teamName} | ${getEventLabel(
           event.type
@@ -845,6 +738,13 @@ export default function FinalMatchControls({
         return
       }
 
+      await saveFinalState({
+        isFinished: true,
+        winnerTeamId: finalWinnerTeamId,
+        pauseStartedAt: null,
+        pauseReason: '',
+      })
+
       router.push('/referee')
       router.refresh()
     } catch (err: any) {
@@ -903,7 +803,7 @@ export default function FinalMatchControls({
           }}
         >
           <div style={{ fontSize: 13, color: '#666' }}>
-            {stage === 'halftime' ? 'Descanso restante' : 'Tiempo FIFA · ' + getStageLabel(stage)}
+            Tiempo restante · {getStageLabel(stage)}
           </div>
 
           <div
@@ -914,13 +814,12 @@ export default function FinalMatchControls({
               color: isLastMinute || isTimeFinished ? '#b91c1c' : 'black',
             }}
           >
-            {formatTime(publicClockSeconds)}
+            {formatTime(remainingSeconds)}
           </div>
-          {publicAddedSeconds > 0 ? (
-            <div style={{ marginTop: 8, fontWeight: 'bold', color: '#111827' }}>
-              Agregado: +{formatTime(publicAddedSeconds)}
-            </div>
-          ) : null}
+
+          <div style={{ marginTop: 8, fontWeight: 'bold', color: '#111827' }}>
+            Agregado: +{formatTime(totalAddedSeconds)}
+          </div>
 
           {pauseStartedAt && (
             <div
@@ -1163,7 +1062,7 @@ export default function FinalMatchControls({
                   }}
                 >
                   <div style={{ fontWeight: 'bold' }}>
-                    {event.minute ? `${event.minute} · ` : ''}
+                    {event.minute !== null && event.minute !== undefined ? `${event.minute}' · ` : ''}
                     {getStageLabel(event.stage)} · {teamName}
                   </div>
 
